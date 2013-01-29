@@ -1,6 +1,5 @@
 # Implementation of Kansas websocket handler.
 
-import Image
 import copy
 import collections
 import json
@@ -11,6 +10,13 @@ import threading
 import time
 import urllib2
 import decks
+
+try:
+    import Image
+    haveImaging = True
+except:
+    logging.warning("Failed to import imaging module.")
+    haveImaging = False
 
 kSmallImageSize = (123, 175)
 kServingPrefix = ''
@@ -33,7 +39,7 @@ class CachingLoader(dict):
         self['resource_prefix'] = kServingPrefix
 
         def download(suffix):
-            url = self.toResource(suffix)
+            url = self.toAbsoluteURL(suffix)
             path = self.cachePath(url)
             if not os.path.exists(path):
                 logging.info("GET " + url)
@@ -49,10 +55,10 @@ class CachingLoader(dict):
             self['urls'][card] = large_path
 
             # Generates small version of images.
-            # small_path = large_path[:-4] + ('@%dx%d.jpg' % kSmallImageSize)
-            # if not os.path.exists(small_path):
-                # self.resize(large_path, small_path)
-            self['urls_small'][card] = large_path
+            small_path = large_path[:-4] + ('@%dx%d.jpg' % kSmallImageSize)
+            if not os.path.exists(small_path):
+                small_path = self.resize(large_path, small_path)
+            self['urls_small'][card] = small_path
 
         # Caches the back image.
         self['default_back_url'] = download(self['default_back_url'])
@@ -68,12 +74,16 @@ class CachingLoader(dict):
 
     def resize(self, large_path, small_path):
         """Resizes image found at large_path and saves to small_path."""
-        logging.info("Resize %s -> %s" % (large_path, small_path))
-        Image.open(large_path)\
-             .resize(kSmallImageSize, Image.ANTIALIAS)\
-             .save(small_path)
+        if haveImaging:
+            logging.info("Resize %s -> %s" % (large_path, small_path))
+            Image.open(large_path)\
+                 .resize(kSmallImageSize, Image.ANTIALIAS)\
+                 .save(small_path)
+            return small_path
+        else:
+            return large_path
 
-    def toResource(self, url):
+    def toAbsoluteURL(self, url):
         if url.startswith('/'):
             return kLocalServingAddress + url
         if url.startswith('http:'):
