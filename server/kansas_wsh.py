@@ -55,10 +55,13 @@ class CachingLoader(dict):
             self['urls'][card] = large_path
 
             # Generates small version of images.
-            small_path = large_path[:-4] + ('@%dx%d.jpg' % kSmallImageSize)
-            if not os.path.exists(small_path):
-                small_path = self.resize(large_path, small_path)
-            self['urls_small'][card] = small_path
+            try: 
+                small_path = large_path[:-4] + ('@%dx%d.jpg' % kSmallImageSize)
+                if not os.path.exists(small_path):
+                    small_path = self.resize(large_path, small_path)
+                self['urls_small'][card] = small_path
+            except: 
+                self['urls_small'][card] = large_path
 
         # Caches the back image.
         self['default_back_url'] = download(self['default_back_url'])
