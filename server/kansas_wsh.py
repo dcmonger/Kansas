@@ -49,10 +49,10 @@ class CachingLoader(dict):
             self['urls'][card] = large_path
 
             # Generates small version of images.
-            small_path = large_path[:-4] + ('@%dx%d.jpg' % kSmallImageSize)
-            if not os.path.exists(small_path):
-                self.resize(large_path, small_path)
-            self['urls_small'][card] = small_path
+            # small_path = large_path[:-4] + ('@%dx%d.jpg' % kSmallImageSize)
+            # if not os.path.exists(small_path):
+                # self.resize(large_path, small_path)
+            self['urls_small'][card] = large_path
 
         # Caches the back image.
         self['default_back_url'] = download(self['default_back_url'])
@@ -101,8 +101,11 @@ class JSONOutput(object):
 class KansasGameState(object):
     """KansasGameState holds the entire state of the game in json format."""
 
-    def __init__(self):
-        self.data = CachingLoader(decks.DEFAULT_MAGIC_DECK)
+    def __init__(self, first = 0, second = 1):
+        self.deck1 = first
+        self.deck2 = second
+        self.data = CachingLoader(combine_decks(decks.decklist[first], decks.decklist[second]))
+        #self.data = CachingLoader(decks.DEFAULT_MAGIC_DECK)
         self.index = self.buildIndex()
         self.assignZIndices()
         self.assignOrientations()
@@ -113,6 +116,7 @@ class KansasGameState(object):
         else:
             i = 0
         for loc, stack in self.data['board'].iteritems():
+            random.shuffle(stack)
             for card in stack:
                 if card not in self.data['zIndex']:
                     self.data['zIndex'][card] = i
@@ -264,6 +268,7 @@ class KansasGameHandler(KansasHandler):
         self.handlers['stackop'] = self.handle_stackop
         self.handlers['resync'] = self.handle_resync
         self.handlers['reset'] = self.handle_reset
+        self.handlers['select'] = self.handle_select
         self.streams = {creatorOutputStream: creator}
 
     def handle_stackop(self, req, output):
@@ -368,7 +373,14 @@ class KansasGameHandler(KansasHandler):
 
     def handle_reset(self, req, output):
         with self._lock:
-            self._state = KansasGameState()
+            self._state = KansasGameState(self._state.deck1, self._state.deck2)
+            self.broadcast(
+                set(self.streams.keys()),
+                'reset',
+                self.snapshot())
+    def handle_select(self, req, output):
+        with self._lock:
+            self._state = KansasGameState(self._state.deck1+1, self._state.deck2)
             self.broadcast(
                 set(self.streams.keys()),
                 'reset',
@@ -444,6 +456,32 @@ def web_socket_transfer_data(request):
             request.ws_stream.send_message(
                json.dumps({'type': 'error', 'msg': str(e)}),
                binary=False)
+               
+# Combine two decks to form one data structure
+
+def combine_decks(deck1, deck2):
+    data = {
+    'deck_name': 'Test magic deck',
+    'resource_prefix': 'http://magiccards.info/scans/en/',
+    'default_back_url': '/third_party/images/mtg_detail.jpg',
+    'board': {
+        70321710: range(0, 60),
+        44892300: range(60, 120)
+    },
+    'hands': {},
+    'zIndex': {},
+    'orientations': {},
+    'urls': {},
+    'urls_small': {},
+    'back_urls': {},
+    'titles': {}
+    }
+    data['urls'] = deck1['urls'].copy()
+    i = 60
+    for key, val in deck2['urls'].iteritems():
+        data['urls'][i] = val
+        i += 1
+    return data
 
 
 # vi:sts=4 sw=4 et

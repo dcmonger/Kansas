@@ -2223,7 +2223,12 @@ $(document).ready(function() {
             ws.send("reset");
         }
     });
-
+    $("#select").mouseup(function(e) {
+        if (confirm("Are you sure you want to select the next deck?")) {
+            showSpinner();
+            ws.send("select");
+        }
+    });
     $("#debug").mouseup(function(e) {
         $("#console").toggle();
         $("#stats").show();
