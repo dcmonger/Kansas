@@ -22,8 +22,6 @@ for filename in os.listdir('deckdir'):
     deck = open('deckdir/%s' %filename)
     deckdata = {
     'deck_name': filename,
-    'resource_prefix': 'http://magiccards.info/scans/en/',
-    'default_back_url': '/third_party/images/mtg_detail.jpg',
     'urls': {},
     }
     while True:
