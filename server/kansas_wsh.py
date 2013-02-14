@@ -473,13 +473,15 @@ def web_socket_transfer_data(request):
 # Combine two decks to form one data structure
 
 def combine_decks(deck1, deck2):
+    d1length = len(deck1['urls'])
+    d2length = len(deck2['urls'])
     data = {
     'deck_name': 'Test magic deck',
     'resource_prefix': 'http://magiccards.info/scans/en/',
     'default_back_url': '/third_party/images/mtg_detail.jpg',
     'board': {
-        70321710: range(0, 60),
-        44892300: range(60, 120)
+        70321710: range(0, d1length),
+        44892300: range(d1length, d1length+d2length)
     },
     'hands': {},
     'zIndex': {},
@@ -490,7 +492,7 @@ def combine_decks(deck1, deck2):
     'titles': {}
     }
     data['urls'] = deck1['urls'].copy()
-    i = 60
+    i = d1length
     for key, val in deck2['urls'].iteritems():
         data['urls'][i] = val
         i += 1
