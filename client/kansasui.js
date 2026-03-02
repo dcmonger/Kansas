@@ -1749,19 +1749,22 @@ KansasUI.prototype.init = function(client, uuid, user, orient, gameid, gender, u
             var resp = cardsToHtml(cards, 'validated', data.resp);
             that._setDeckInputHtml(resp);
             debugStep("deckinput_marked_validated", { parsedCards: cards.length });
-            var urls = [];
+            var previewCards = [];
             var counts = [];
             for (i in cards) {
                 var url = data.resp[cards[i][1]];
                 if (url) {
-                    counts[urls.length] = cards[i][0];
-                    urls.push(url);
+                    counts[previewCards.length] = cards[i][0];
+                    previewCards.push({
+                        name: cards[i][1],
+                        img_url: url,
+                    });
                 }
             }
-            debugStep("preview_urls_built", { urls: urls.length });
-            if (urls.length > 0) {
-                that.searcher.previewItems(urls, null, null, counts, undefined, data['suggested']);
-                debugStep("preview_render_requested", { urls: urls.length });
+            debugStep("preview_cards_built", { cards: previewCards.length });
+            if (previewCards.length > 0) {
+                that.searcher.previewItems(previewCards, null, null, counts, undefined, data['suggested']);
+                debugStep("preview_render_requested", { cards: previewCards.length });
                 if (!inPlace) {
                     $("#search_preview").scrollTop(0);
                     debugStep("preview_scrolled_to_top");

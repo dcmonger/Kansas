@@ -665,6 +665,7 @@ class ScryfallPlugin(DefaultPlugin):
 
     def _open_json(self, url):
         logging.info("Scryfall request: GET %s", url)
+        logging.debug("Scryfall request debug: url=%s", url)
         req = urllib.request.Request(
             url,
             headers={'User-Agent': 'kansas/1.0 (+https://github.com/)'}
@@ -721,7 +722,14 @@ class ScryfallPlugin(DefaultPlugin):
         }
 
     def Fetch(self, name, exact, limit):
+        logging.info(
+            "Scryfall fetch: term='%s' exact=%s limit=%s",
+            name,
+            exact,
+            limit,
+        )
         if name == '':
+            logging.info("Scryfall fetch skipped: empty term")
             return [], {}
 
         if exact:
@@ -744,6 +752,7 @@ class ScryfallPlugin(DefaultPlugin):
         page_size = min(int(limit or 20), 175)
         url = '%s/cards/search?q=%s&order=name&unique=cards&include_multilingual=false&page=1' % (
             self.API_ROOT, urllib.parse.quote(q))
+        logging.info("Scryfall search request params: q='%s' page_size=%d", q, page_size)
         try:
             payload = self._open_json(url)
         except (urllib.error.HTTPError, urllib.error.URLError) as e:
