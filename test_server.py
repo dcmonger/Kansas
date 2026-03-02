@@ -1,11 +1,19 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import sys
-from mod_pywebsocket import standalone
+
+try:
+    from mod_pywebsocket import standalone
+except ImportError:
+    try:
+        from pywebsocket3 import standalone
+    except ImportError:
+        from pywebsocket import standalone
+
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        print "Usage: %s <port>" % sys.argv[0]
+        print(f"Usage: {sys.argv[0]} <port>")
     else:
-        print "Test console at http://localhost:%d/console.html" % int(sys.argv[1])
+        print(f"Test console at http://localhost:{int(sys.argv[1])}/console.html")
         standalone._main(['-p', sys.argv[1], '-d', 'server', '--log_level=info'])

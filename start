@@ -1,9 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-if [ `whoami` == 'root' ]; then
-    python -m SimpleHTTPServer 80 &
-else
-    python -m SimpleHTTPServer 8000 &
+HTTP_PORT=8000
+if [ "$(id -u)" = "0" ]; then
+  HTTP_PORT=80
 fi
 
+python3 -m http.server "$HTTP_PORT" &
 ./test_server.py 8080 | tee -a kansas-server.log

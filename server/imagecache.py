@@ -5,7 +5,7 @@ from server import namespaces
 
 import logging
 import os
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 
 # Stores map of url -> cached file, which can be used to invert _toHashName().
 CacheMap = namespaces.Namespace(config.kDBPath, 'CacheMap', version=1)
@@ -44,7 +44,7 @@ def Cached(url, dont_fetch=False):
             return None
 
         logging.info("GET " + url)
-        imgdata = urllib2.urlopen(url).read()
+        imgdata = urllib.request.urlopen(url).read()
 
         with open(path, 'wb') as f:
             f.write(imgdata)
