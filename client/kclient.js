@@ -226,18 +226,21 @@ KansasClient.prototype.connect = function(callback) {
 
 KansasClient.prototype.listAll = function() {
     var acc = [];
-    for (key in this._game.state.board) {
-        acc.push.apply(acc, this._game.state.board[key]);
+    var board = this._game.state.board || {};
+    var hands = this._game.state.hands || {};
+    for (key in board) {
+        acc.push.apply(acc, board[key]);
     }
-    for (key in this._game.state.hands) {
-        acc.push.apply(acc, this._game.state.hands[key]);
+    for (key in hands) {
+        acc.push.apply(acc, hands[key]);
     }
     return acc;
 }
 
 KansasClient.prototype.listStacks = function(ns) {
     var acc = [];
-    for (key in this._game.state[ns]) {
+    var stacks = this._game.state[ns] || {};
+    for (key in stacks) {
         acc.push(key);
     }
     return acc;
@@ -250,7 +253,8 @@ KansasClient.prototype.getPos = function(id) {
 
 KansasClient.prototype.getOrient = function(id) {
     id = toId(id);
-    return this._game.state.orientations[id];
+    var orients = this._game.state.orientations || {};
+    return orients[id];
 }
 
 KansasClient.prototype.stackIndex = function(id) {
@@ -303,7 +307,8 @@ KansasClient.prototype.stackHeight = function(id) {
 }
 
 KansasClient.prototype.getStack = function(pos_type, pos) {
-    return this._game.state[pos_type][pos];
+    var space = this._game.state[pos_type] || {};
+    return space[pos];
 }
 
 KansasClient.prototype.getStackTop = function(pos_type, pos) {
@@ -313,17 +318,20 @@ KansasClient.prototype.getStackTop = function(pos_type, pos) {
 
 KansasClient.prototype.getSmallUrl = function(id) {
     id = toId(id);
-    return this._game.state.urls_small[id] || this.getFrontUrl(id);
+    var urlsSmall = this._game.state.urls_small || {};
+    return urlsSmall[id] || this.getFrontUrl(id);
 }
 
 KansasClient.prototype.getFrontUrl = function(id) {
     id = toId(id);
-    return this._game.state.urls[id];
+    var urls = this._game.state.urls || {};
+    return urls[id];
 }
 
 KansasClient.prototype.getBackUrl = function(id) {
     id = toId(id);
-    return this._game.state.back_urls[id] || this._game.state.default_back_url;
+    var backUrls = this._game.state.back_urls || {};
+    return backUrls[id] || this._game.state.default_back_url;
 }
 
 KansasClient.prototype.newBulkMoveTxn = function() {

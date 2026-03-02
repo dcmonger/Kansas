@@ -17,11 +17,15 @@ import html
 import urllib.parse
 
 try:
-    import Image
+    from PIL import Image
     haveImaging = True
-except:
-    logging.warning("Failed to import imaging module.")
-    haveImaging = False
+except ImportError:
+    try:
+        import Image  # type: ignore
+        haveImaging = True
+    except ImportError:
+        logging.info("Failed to import imaging module.")
+        haveImaging = False
 
 
 Games = namespaces.Namespace(config.kDBPath, 'Games', version=2)

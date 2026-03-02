@@ -226,7 +226,7 @@ function handleListGames(data) {
                 + "</div>"
             ).appendTo("#gamelist");
         }
-        if ($(".entergame").size() > 0) {
+        if ($(".entergame").length > 0) {
             $(".entergame").first().focus();
         } else {
             $("#newgame").focus();
@@ -335,13 +335,13 @@ $(document).ready(function() {
         localstore.put('sourceid', false);
     });
 
-    $(".entergame").live('click', function(event) {
+    $(document).on('click', ".entergame", function(event) {
         var button = $(event.currentTarget)
         gameid = button.data("gameid");
         enterGame(button.data("suggested_orient"));
     });
 
-    $(".endgame").live('click', function(event) {
+    $(document).on('click', ".endgame", function(event) {
         var gid = $(event.currentTarget).data("gameid");
         if (confirm("Are you sure you want to end '" + gid + "'?")) {
             client.send("end_game", gid);
