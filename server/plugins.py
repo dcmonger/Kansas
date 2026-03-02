@@ -3,6 +3,7 @@
 import collections
 import csv
 import glob
+import json
 import logging
 import os
 import random
@@ -67,11 +68,14 @@ landsByColor = {
     'G': 'Forest',
 }
 
-def sanitize(s):
-    return s \
-        .replace("\xc3\x86", "Ae") \
-        .replace("\xc3\xa1", "a") \
-        .decode('ascii', errors='ignore')
+def sanitize(value):
+    if isinstance(value, bytes):
+        value = value.decode('utf-8', errors='ignore')
+    return value \
+        .replace("Æ", "Ae") \
+        .replace("á", "a") \
+        .encode('ascii', errors='ignore') \
+        .decode('ascii')
 
 class MagicCard(object):
 
@@ -626,7 +630,9 @@ class LocalDBPlugin(DefaultPlugin):
         return stream, meta
 
 
-class MagicCardsInfoPlugin(DefaultPlugin):
+class ScryfallPlugin(DefaultPlugin):
+
+    API_ROOT = 'https://api.scryfall.com'
 
     def GetBackUrl(self):
         return '/third_party/images/mtg_detail.jpg'
@@ -637,41 +643,66 @@ class MagicCardsInfoPlugin(DefaultPlugin):
     def SampleDeck(self, term, num_decks):
         return Catalog.makeDecks(term, num_decks)
 
+    def _open_json(self, url):
+        logging.info("GET %s", url)
+        req = urllib.request.Request(
+            url,
+            headers={'User-Agent': 'kansas/1.0 (+https://github.com/)'}
+        )
+        with urllib.request.urlopen(req) as resp:
+            data = resp.read().decode('utf-8', errors='ignore')
+        return json.loads(data)
+
+    def _to_entry(self, card):
+        image_uris = card.get('image_uris') or {}
+        if not image_uris and 'card_faces' in card:
+            for face in card['card_faces']:
+                if face.get('image_uris'):
+                    image_uris = face['image_uris']
+                    break
+
+        img_url = image_uris.get('normal') or image_uris.get('large') or image_uris.get('small')
+        if not img_url:
+            return None
+
+        return {
+            'name': card.get('name', ''),
+            'img_url': img_url,
+            'info_url': card.get('scryfall_uri', card.get('uri', '')),
+        }
+
     def Fetch(self, name, exact, limit):
         if name == '':
             return [], {}
 
-        def DoQuery(url):
-            logging.info("GET " + url)
-            req = urllib.request.Request(url)
-            stream = urllib.request.urlopen(req)
-            data = stream.read()
-            if isinstance(data, bytes):
-                data = data.decode('utf-8', errors='ignore')
-            if 'selected="selected">View as a List' in data:
-                matches = re.finditer(
-                    r'<a href="/([a-z0-9]*)/en/([a-z0-9]*).html">(.*?)</a>',
-                    data)
-            else:
-                matches = re.finditer(
-                    r'<a href="/([a-z0-9]*)/en/([a-z0-9]*).html">(.*?)</a>\s+<img',
-                    data)
-            has_more = bool(re.findall('"\/query.*;p=2"', data))
-            stream = []
-            for m in matches:
-                m1, m2, m3 = m.group(1), m.group(2), m.group(3)
-                stream.append({
-                    'name': m3,
-                    'img_url': "http://magiccards.info/scans/en/%s/%s.jpg" % (m1, m2),
-                    'info_url': "http://magiccards.info/%s/en/%s.html" % (m1, m2),
-                })
-            meta = {
-                'has_more': has_more,
-                'more_url': "http://magiccards.info/query?q=" + name,
-            }
-            return (stream, meta)
+        if exact:
+            url = '%s/cards/named?exact=%s' % (self.API_ROOT, urllib.parse.quote(name))
+            try:
+                payload = self._open_json(url)
+            except urllib.error.HTTPError:
+                return [], {'has_more': False, 'more_url': ''}
+            entry = self._to_entry(payload)
+            return ([entry] if entry else []), {'has_more': False, 'more_url': ''}
 
-        url = "http://magiccards.info/query?q=%s%s&v=olist&s=cname" %\
-            ('!' if exact else 'l:en+', '+'.join(name.split()))
+        q = name.strip()
+        page_size = min(int(limit or 20), 175)
+        url = '%s/cards/search?q=%s&order=name&unique=cards&include_multilingual=false&page=1' % (
+            self.API_ROOT, urllib.parse.quote(q))
+        payload = self._open_json(url)
+        stream = []
+        for card in payload.get('data', []):
+            entry = self._to_entry(card)
+            if entry:
+                stream.append(entry)
+            if len(stream) >= page_size:
+                break
 
-        return DoQuery(url)
+        meta = {
+            'has_more': bool(payload.get('has_more', False)),
+            'more_url': payload.get('next_page', ''),
+        }
+        return stream, meta
+
+
+# Backwards-compatibility alias for existing saved source IDs.
+MagicCardsInfoPlugin = ScryfallPlugin

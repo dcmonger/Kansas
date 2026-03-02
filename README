@@ -16,7 +16,7 @@ Features:
 Dependencies (use ./install_deps.sh):
 
     python3
-    pywebsocket (provides mod_pywebsocket)
+    websockets
     pillow (optional, used for image resizing)
 
 Running a test server:
@@ -28,3 +28,6 @@ Running a test server:
     Then, visit:
 
         http://localhost:8000/index.html#playerName
+
+
+MTG card search now uses the Scryfall API for card metadata and image URLs.

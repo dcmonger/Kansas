@@ -2,4 +2,4 @@
 set -euo pipefail
 
 python3 -m pip install --upgrade pip
-python3 -m pip install pywebsocket pillow
+python3 -m pip install websockets pillow
