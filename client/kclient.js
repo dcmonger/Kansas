@@ -378,6 +378,9 @@ KansasClient.prototype._eventHandlers = function(that) {
             that.ui.vlog(0, "Unhandled response: " + JSON.stringify(e));
         },
         error: function(e) {
+            var pending = Object.keys(that._futures || {});
+            console.error("Kansas websocket error:", e, "pending futures:", pending);
+            that.ui.vlog(0, "ws:error " + JSON.stringify(e));
             that._notify('error', e.msg);
         },
         redirect: function(e) {
