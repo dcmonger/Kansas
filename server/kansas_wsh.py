@@ -2,19 +2,24 @@
 
 import copy
 import collections
+import hashlib
 import json
 import logging
 import os
 import random
 import threading
 import time
-import urllib2
-import decks
+import urllib.request
 
 try:
-    import Image
+    from . import decks
+except ImportError:
+    import decks
+
+try:
+    from PIL import Image
     haveImaging = True
-except:
+except Exception:
     logging.warning("Failed to import imaging module.")
     haveImaging = False
 
@@ -43,13 +48,13 @@ class CachingLoader(dict):
             path = self.cachePath(url)
             if not os.path.exists(path):
                 logging.info("GET " + url)
-                imgdata = urllib2.urlopen(url).read()
+                imgdata = urllib.request.urlopen(url).read()
                 with open(path, 'wb') as f:
                     f.write(imgdata)
             return path
 
         # Caches front image urls.
-        for card, suffix in self['urls'].items():
+        for card, suffix in list(self['urls'].items()):
             # Downloads large version of images.
             large_path = download(suffix)
             self['urls'][card] = large_path
@@ -60,27 +65,29 @@ class CachingLoader(dict):
                 if not os.path.exists(small_path):
                     small_path = self.resize(large_path, small_path)
                 self['urls_small'][card] = small_path
-            except: 
+            except Exception:
                 self['urls_small'][card] = large_path
 
         # Caches the back image.
         self['default_back_url'] = download(self['default_back_url'])
 
         # Caches other back urls.
-        for card, suffix in self['back_urls'].items():
+        for card, suffix in list(self['back_urls'].items()):
             self['back_urls'][card] = download(suffix)
 
         logging.info("Cache load in %.3f seconds" % (time.time() - start))
 
     def cachePath(self, url):
-        return os.path.join(kCachePath, hex(hash('$' + url))[2:] + '.jpg')
+        digest = hashlib.sha256(url.encode("utf-8")).hexdigest()
+        return os.path.join(kCachePath, f"{digest}.jpg")
 
     def resize(self, large_path, small_path):
         """Resizes image found at large_path and saves to small_path."""
         if haveImaging:
             logging.info("Resize %s -> %s" % (large_path, small_path))
+            resampling = getattr(Image, "Resampling", Image).LANCZOS
             Image.open(large_path)\
-                 .resize(kSmallImageSize, Image.ANTIALIAS)\
+                 .resize(kSmallImageSize, resampling)\
                  .save(small_path)
             return small_path
         else:
@@ -89,7 +96,7 @@ class CachingLoader(dict):
     def toAbsoluteURL(self, url):
         if url.startswith('/'):
             return kLocalServingAddress + url
-        if url.startswith('http:'):
+        if url.startswith(('http:', 'https:')):
             return url
         else:
             return self.oldPrefix + url
@@ -128,7 +135,7 @@ class KansasGameState(object):
             i = max(self.data['zIndex'].values())
         else:
             i = 0
-        for loc, stack in self.data['board'].iteritems():
+        for loc, stack in self.data['board'].items():
             random.shuffle(stack)
             for card in stack:
                 if card not in self.data['zIndex']:
@@ -136,7 +143,7 @@ class KansasGameState(object):
                     i += 1
                 if card not in self.data['orientations']:
                     self.data['orientations'][card] = -1
-        for user, hand in self.data['hands'].iteritems():
+        for user, hand in self.data['hands'].items():
             for card in hand:
                 if card not in self.data['zIndex']:
                     self.data['zIndex'][card] = i
@@ -161,21 +168,21 @@ class KansasGameState(object):
 
     def assignOrientations(self):
         i = 0
-        for loc, stack in self.data['board'].iteritems():
+        for loc, stack in self.data['board'].items():
             for card in stack:
                 self.data['zIndex'][card] = i
                 i += 1
-        for user, hand in self.data['hands'].iteritems():
+        for user, hand in self.data['hands'].items():
             for card in hand:
                 self.data['zIndex'][card] = i
                 i += 1
 
     def buildIndex(self):
         index = {}
-        for loc, stack in self.data['board'].iteritems():
+        for loc, stack in self.data['board'].items():
             for card in stack:
                 index[card] = ('board', loc)
-        for user, hand in self.data['hands'].iteritems():
+        for user, hand in self.data['hands'].items():
             for card in hand:
                 index[card] = ('hands', user)
         return index
@@ -185,7 +192,7 @@ class KansasGameState(object):
         if dest_type == 'board':
             dest_key = int(dest_key)
         else:
-            assert type(dest_key) in [str, unicode], type(dest_key)
+            assert isinstance(dest_key, str), type(dest_key)
         assert dest_orient in range(-4, 5)
 
         src_type, src_key = self.index[card]
@@ -334,7 +341,7 @@ class KansasGameHandler(KansasHandler):
                 except:
                     logging.warning("Ignoring bad move: " + str(move));
             msg = []
-            for (dest_t, dest_k), updates in updatebuffer.iteritems():
+            for (dest_t, dest_k), updates in updatebuffer.items():
                 msg.append({
                     'dest_type': dest_t,
                     'dest_key': dest_k,
@@ -420,7 +427,7 @@ class KansasGameHandler(KansasHandler):
                         'time': time.time(),
                     }),
                     binary=False)
-            except Exception, e:
+            except Exception as e:
                 logging.exception(e)
                 logging.warning("Removing broken stream %s", stream)
                 del self.streams[stream]
@@ -464,7 +471,7 @@ def web_socket_transfer_data(request):
                 req['type'],
                 req.get('data'),
                 JSONOutput(request.ws_stream, req['type']))
-        except Exception, e:
+        except Exception as e:
             logging.exception(e)
             request.ws_stream.send_message(
                json.dumps({'type': 'error', 'msg': str(e)}),
@@ -480,8 +487,8 @@ def combine_decks(deck1, deck2):
     'resource_prefix': 'http://magiccards.info/scans/en/',
     'default_back_url': '/third_party/images/mtg_detail.jpg',
     'board': {
-        70321710: range(0, d1length),
-        44892300: range(d1length, d1length+d2length)
+        70321710: list(range(0, d1length)),
+        44892300: list(range(d1length, d1length+d2length))
     },
     'hands': {},
     'zIndex': {},
@@ -493,7 +500,7 @@ def combine_decks(deck1, deck2):
     }
     data['urls'] = deck1['urls'].copy()
     i = d1length
-    for key, val in deck2['urls'].iteritems():
+    for key, val in deck2['urls'].items():
         data['urls'][i] = val
         i += 1
     return data
