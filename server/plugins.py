@@ -514,9 +514,9 @@ class LocalDBPlugin(DefaultPlugin):
                     'type': card_type,
                 })
         else:
-            range_expr = "(\d+)\s*(to|-)\s*(\d+)\s*(mana|cost|cmc)"
-            mana_expr = "(mana|cost|cmc)\s*(>|<|>=|<=|=|==|)\s*(\d+)"
-            mana_expr2 = "(\d+)\s*(mana|cost|cmc)"
+            range_expr = r"(\d+)\s*(to|-)\s*(\d+)\s*(mana|cost|cmc)"
+            mana_expr = r"(mana|cost|cmc)\s*(>|<|>=|<=|=|==|)\s*(\d+)"
+            mana_expr2 = r"(\d+)\s*(mana|cost|cmc)"
             predicates = []
             def add_pred(op, val):
                 if op == '==':
