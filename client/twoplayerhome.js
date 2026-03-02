@@ -1,5 +1,19 @@
 /* Home screen implementation that supports two-player games in general. */
 
+/* Global debug toggle from querystring/local storage. */
+(function() {
+    var params = new URLSearchParams(window.location.search);
+    var debugParam = params.get("debug");
+    if (debugParam !== null) {
+        localstore.put("debug_mode", debugParam === "1" || debugParam === "true");
+    }
+    window.KANSAS_DEBUG = !!localstore.get("debug_mode");
+    if (window.KANSAS_DEBUG) {
+        window.KANSAS_LOGLEVEL = 3;
+        console.log("Kansas debug mode enabled (?debug=1).");
+    }
+})();
+
 /* XXX for exposing clients to world for debugging */
 var clients = [];
 var c0 = null;

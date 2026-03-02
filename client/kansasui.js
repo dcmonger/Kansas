@@ -297,7 +297,7 @@ jQuery.fn.zIndex = function() {
     return originalZIndex.apply(this, arguments);
 }
 
-var LOGLEVEL = 1;
+var LOGLEVEL = window.KANSAS_LOGLEVEL || 1;
 var kAnimationLength = 400;
 
 // Minimum zIndexes for various states.
@@ -1692,6 +1692,19 @@ KansasUI.prototype.init = function(client, uuid, user, orient, gameid, gender, u
     this.gender = gender;
     this.oldtitle = document.title;
 
+    if (window.KANSAS_DEBUG) {
+        this.vlog(0, "KansasUI debug mode active.");
+        $(document).off("load.kansasDebug error.kansasDebug", "img");
+        $(document).on("load.kansasDebug", "img", function() {
+            var img = $(this);
+            console.log("IMG load:", img.attr("id") || "(no-id)", img.attr("src"));
+        });
+        $(document).on("error.kansasDebug", "img", function() {
+            var img = $(this);
+            console.error("IMG error:", img.attr("id") || "(no-id)", img.attr("src"));
+        });
+    }
+
     if (isMobile.any()) {
         $(".actionbutton").addClass("largeactionbutton");
     }
@@ -2981,6 +2994,9 @@ KansasUI.prototype.handleAdd = function(data) {
         var url = that.client.getSmallUrl(cid);
         if (that.client.getOrient(cid) < 0) {
             url = that.client.getBackUrl(cid);
+        }
+        if (window.KANSAS_DEBUG) {
+            that.vlog(0, "create card " + cid + " src=" + that._toResource(url));
         }
         var img = '<img style="z-index: '
             + that.nextBoardZIndex + '; display: none"'

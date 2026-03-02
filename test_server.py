@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-import sys
+import argparse
+import logging
 from types import SimpleNamespace
 
 from server import kansas_wsh
@@ -61,14 +62,25 @@ def _handler(conn):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} <port>")
-        raise SystemExit(2)
+    parser = argparse.ArgumentParser(description="Kansas websocket test server")
+    parser.add_argument("port", type=int, help="WebSocket port")
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable verbose server logging for debugging",
+    )
+    args = parser.parse_args()
 
-    port = int(sys.argv[1])
-    print(f"Test console at http://localhost:{port}/console.html")
-    with serve(_handler, "0.0.0.0", port):
-        print(f"WebSocket server listening on ws://localhost:{port}/kansas")
+    loglevel = logging.DEBUG if args.debug else logging.INFO
+    logging.basicConfig(
+        level=loglevel,
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    )
+    logging.info("Server debug logging %s", "enabled" if args.debug else "disabled")
+
+    print(f"Test console at http://localhost:{args.port}/console.html")
+    with serve(_handler, "0.0.0.0", args.port):
+        print(f"WebSocket server listening on ws://localhost:{args.port}/kansas")
         try:
             while True:
                 import time
