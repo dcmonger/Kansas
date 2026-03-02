@@ -21,7 +21,7 @@ _SOURCES = {
 
 
 def AllSources():
-    return _SOURCES.keys()
+    return list(_SOURCES.keys())
 
 
 def IsValid(source):

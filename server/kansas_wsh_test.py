@@ -1,4 +1,4 @@
-import kansas_wsh
+from . import kansas_wsh
 
 # TODO unit tests
 class TestJSONResponder: pass

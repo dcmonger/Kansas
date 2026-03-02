@@ -9,7 +9,7 @@ import random
 import re
 import shlex
 import time
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 
 
 kThemeBlacklist = { 'of', 'them', 'while', 'bad', 'size', 'share', 'combination', 'exactly', 'opponents', 'shuffles', 'attach', 'turned', 'lost', 'step', 'become', 'attacked', 'produces', 'shares', 'putting', 'second', 'storage', 'abilities', 'blockers', 'upkeep', 'evoke', 'rebound', 'players', 'already', 'tied', 'unpaired', 'unattached', 'deck', 'exchange', 'away', 'been', 'twice', 'returned', 'opening', 'text', 'once', 'leaves', 'leave', 'choice', 'stays', 'still', 'spent', 'returned', 'colorless', 'also', 'a', 'types', 'fewer', 'will', 'reveals', 'single', 'died', 'exchange' 'effect', 'nonbasic', 'word', 'words', 'kit', 'paid', 'random', 'sources', 'casts', 'the', 'in', 'remain', 'false', 'spend', 'total', 'move', 'played', 'entered', 'activated', 'greatest', 'affinity', 'instead', 'declare', 'which', 'attached', 'instead', 'play', 'increasing', 'does', 'assign', 'noncreature', 'unblocked', 'costs', 'kind', 'named', 'maximum', 'greatest', 'owner', 'take', 'remains', 'colors', 'common', 'rather', 'empty', 'there', 'untapped', 'form', 'source', 'flip', 'removed', 'both', 'nontoken', 'for', 'soon', 'much', 'nonwhite', 'nonblack', 'nonred', 'nonblue', 'nongreen', 'loss', 'after', 'before', 'same', 'could', 'begin', 'being', 'bottom', 'and', 'or', 'either', 'draws', 'lasts', 'comes', 'plays', 'change', 'instances', 'third', 'five', 'adds', 'since', 'targets', 'least', 'unattach', 'amount', 'game', 'they', 'one', 'pair', 'discarding', 'causes', 'convoke', 'cause', 'effects', 'back', 'most', 'enough', 'repeat', 'attackers', 'keeps', 'down', 'wins', 'blocks', 'regular', 'untaps', 'forces', 'chooses', 'many', 'enter', 'says', 'treated', 'name', 'call', 'every', 'must', 'though', 'cause', 'give' }
@@ -171,7 +171,7 @@ class CardCatalog(object):
                 open(classifyFile).readlines() if x[0] == "0"])
             self.classifiedCards = set([sanitize(x[2:-1]) for x in
                 open(classifyFile).readlines()])
-        except Exception, e:
+        except Exception as e:
             logging.warning("Failed to load classification: %s", e)
             self.newCards = set()
         try:
@@ -181,27 +181,29 @@ class CardCatalog(object):
                     if card.name in self.newCards:
                         card.goodQuality = True
                     self._register(card)
-                except Exception, e:
+                except Exception as e:
                     logging.warning("Failed to parse %s: %s", c, e)
-        except Exception, e:
+        except Exception as e:
             logging.warning("Failed to load catalog: %s", e)
             self.initialized = False
+        if not os.path.exists(self.dbPath):
+            os.makedirs(self.dbPath, exist_ok=True)
         for c in os.listdir(self.dbPath):
             if not c.endswith(".jpg"):
                 continue
             name = c[:-4]
             if name not in self.byName:
-                print "WARNING: card missing metadata: " + name
+                print("WARNING: card missing metadata: " + name)
                 card = MagicCard([name, '', '', '', '', '', '', ''])
                 self._register(card)
         logging.info("Done building card catalog.")
         self.topTokens = []
-        for k, v in self.byTokens.iteritems():
+        for k, v in self.byTokens.items():
             if len(v) >= 10 and len(v) < 170 and re.match('^[a-z]+$', k):
                 if k not in kThemeBlacklist:
                     self.topTokens.append(k)
         logging.info("%d possible themes", len(self.topTokens))
-        print self.topTokens
+        print(self.topTokens)
 
         self.byLand = {
             'Plains': 'W',
@@ -269,7 +271,7 @@ class CardCatalog(object):
     def complete(self, cards):
         deck = {}
         total = 0
-        for k, v in cards.iteritems():
+        for k, v in cards.items():
             total += v
             try:
                 deck[k] = self.byName[k]
@@ -279,11 +281,11 @@ class CardCatalog(object):
         if total >= 60:
             return []
         colorVotes = collections.defaultdict(float)
-        for card in deck.values():
+        for card in list(deck.values()):
             colors = card.colors()
             for color in colors:
                 colorVotes[color] += 1
-        rankedColors = sorted([(v, k) for (k, v) in colorVotes.items()], reverse=True)
+        rankedColors = sorted([(v, k) for (k, v) in list(colorVotes.items())], reverse=True)
         if len(rankedColors) == 0:
             land1 = random.choice(self.basicLands)
             if random.random() > .5:
@@ -402,7 +404,7 @@ class CardCatalog(object):
                 colors = card.colors()
                 for color in colors:
                     colorVotes[color] += 1.0 / (len(colors) + len(pool))
-        rankedColors = sorted([(v, k) for (k, v) in colorVotes.items()], reverse=True)
+        rankedColors = sorted([(v, k) for (k, v) in list(colorVotes.items())], reverse=True)
         if len(rankedColors) > 0:
             land1 = landsByColor[rankedColors[0][1]]
         else:
@@ -459,7 +461,7 @@ class LocalDBPlugin(DefaultPlugin):
         for f in os.listdir(self.DB_PATH):
             name = f.replace('_', '/').replace('.jpg', '')
             key = sanitize(name).lower()
-            self.catalog[key] = urllib2.quote(os.path.join(self.DB_PATH, f))
+            self.catalog[key] = urllib.parse.quote(os.path.join(self.DB_PATH, f))
             self.fullnames[key] = sanitize(name)
             self.index[key] = name
 
@@ -567,7 +569,7 @@ class LocalDBPlugin(DefaultPlugin):
                 parts = needle.split()
             parts, expanded = expand(parts)
             logging.info("Expanded query: " + str(parts) + " " + str(expanded))
-            for title, url in self.catalog.iteritems():
+            for title, url in self.catalog.items():
                 card = Catalog.bySlug.get(title)
                 rank = 0.0
                 if card and predicates:
@@ -602,7 +604,7 @@ class LocalDBPlugin(DefaultPlugin):
                         rank += rankit(p, has_bonus)
                 if rank >= 1:
                     ranked[rank].append(title)
-            ranks = sorted(ranked.keys(), reverse=True)
+            ranks = sorted(list(ranked.keys()), reverse=True)
             for r in ranks:
                 for title in ranked[r]:
                     stream.append({
@@ -641,9 +643,11 @@ class MagicCardsInfoPlugin(DefaultPlugin):
 
         def DoQuery(url):
             logging.info("GET " + url)
-            req = urllib2.Request(url)
-            stream = urllib2.urlopen(req)
+            req = urllib.request.Request(url)
+            stream = urllib.request.urlopen(req)
             data = stream.read()
+            if isinstance(data, bytes):
+                data = data.decode('utf-8', errors='ignore')
             if 'selected="selected">View as a List' in data:
                 matches = re.finditer(
                     r'<a href="/([a-z0-9]*)/en/([a-z0-9]*).html">(.*?)</a>',

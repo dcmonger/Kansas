@@ -5,7 +5,6 @@ from server import datasource
 from server import imagecache
 from server import namespaces
 
-import cgi
 import collections
 import copy
 import json
@@ -14,7 +13,8 @@ import os
 import random
 import threading
 import time
-import urllib2
+import html
+import urllib.parse
 
 try:
     import Image
@@ -80,7 +80,7 @@ class CachingLoader(dict):
         return new_id
 
     def download(self, suffix):
-        url = urllib2.unquote(suffix)
+        url = urllib.parse.unquote(suffix)
         return imagecache.Cached(url)
 
     def resize(self, large_path, small_path):
@@ -128,7 +128,7 @@ class KansasGameState(object):
 
     def gc(self):
         for s in ['orientations', 'urls_small', 'urls']:
-            for card in self.data[s].keys():
+            for card in list(self.data[s].keys()):
                 if not self.containsCard(card):
                     del self.data[s][card]
 
@@ -136,14 +136,14 @@ class KansasGameState(object):
         return card in self.index
 
     def initializeStacks(self, shuffle=False):
-        for loc, stack in self.data['board'].iteritems():
+        for loc, stack in self.data['board'].items():
             assert type(loc) is int, "card locs must be int"
             if shuffle:
                 random.shuffle(stack)
             for card in stack:
                 if card not in self.data['orientations']:
                     self.data['orientations'][card] = -1
-        for user, hand in self.data['hands'].iteritems():
+        for user, hand in self.data['hands'].items():
             for card in hand:
                 if card not in self.data['orientations']:
                     self.data['orientations'][card] = -1
@@ -151,10 +151,10 @@ class KansasGameState(object):
 
     def buildIndex(self):
         index = {}
-        for loc, stack in self.data['board'].iteritems():
+        for loc, stack in self.data['board'].items():
             for card in stack:
                 index[card] = ('board', loc)
-        for user, hand in self.data['hands'].iteritems():
+        for user, hand in self.data['hands'].items():
             for card in hand:
                 index[card] = ('hands', user)
         return index
@@ -164,7 +164,7 @@ class KansasGameState(object):
         if dest_type == 'board':
             dest_key = int(dest_key)
         else:
-            assert type(dest_key) in [str, unicode], type(dest_key)
+            assert type(dest_key) in [str, str], type(dest_key)
         assert dest_orient in range(-4, 5)
 
         src_type, src_key = self.index[card]
@@ -350,14 +350,14 @@ class KansasInitHandler(KansasHandler):
     def presence_count(self):
         count = 0
         with self._lock:
-            for handler in self.spaces.values():
+            for handler in list(self.spaces.values()):
                 count += handler.presence_count()
         return count
 
     def presence_breakdown(self):
         stats = {}
         with self._lock:
-            for k, handler in self.spaces.iteritems():
+            for k, handler in self.spaces.items():
                 stats[k] = handler.presence_breakdown()
         return stats
 
@@ -418,14 +418,14 @@ class KansasSpaceHandler(KansasHandler):
     def presence_count(self):
         count = 0
         with self._lock:
-            for handler in self.games.values():
+            for handler in list(self.games.values()):
                 count += handler.presence_count()
         return count
 
     def presence_breakdown(self):
         stats = {}
         with self._lock:
-            for k, handler in self.games.iteritems():
+            for k, handler in self.games.items():
                 stats[k] = handler.presence_breakdown()
         return stats
 
@@ -434,8 +434,8 @@ class KansasSpaceHandler(KansasHandler):
         with self._lock:
             resp = []
             ranked = sorted(
-                self.games.items(),
-                key=lambda (k, v): (bool(not v.presence_count()), -v.last_used))
+                list(self.games.items()),
+                key=lambda k_v: (bool(not k_v[1].presence_count()), -k_v[1].last_used))
             for gameid, handler in ranked:
                 orients = set()
                 for p in handler.presence_breakdown():
@@ -449,12 +449,12 @@ class KansasSpaceHandler(KansasHandler):
     def garbage_collect_games(self):
         if len(self.games) > self.MAX_GAMES:
             ranked = sorted(
-                self.games.items(),
-                key=lambda (k, v): (bool(not v.presence_count()), -v.last_used))
+                list(self.games.items()),
+                key=lambda k_v1: (bool(not k_v1[1].presence_count()), -k_v1[1].last_used))
             while len(self.games) > self.MAX_GAMES:
                 victim_id, victim = ranked.pop()
                 self.delete_game(victim_id)
-        for gameid, game in self.games.items():
+        for gameid, game in list(self.games.items()):
             if game.terminated:
                 self.delete_game(gameid)
     
@@ -554,11 +554,11 @@ class KansasGameHandler(KansasHandler):
                         'old_type': src_type,
                         'old_key': src_key,
                     })
-                except Exception, e:
+                except Exception as e:
                     logging.exception(e);
                     logging.warning("Ignoring bad move: " + str(move));
             msg = []
-            for (dest_t, dest_k), updates in updatebuffer.iteritems():
+            for (dest_t, dest_k), updates in updatebuffer.items():
                 msg.append({
                     'dest_type': dest_t,
                     'dest_key': dest_k,
@@ -666,7 +666,7 @@ class KansasGameHandler(KansasHandler):
                        }),
                        binary=False)
                     s.close_connection(wait_response=False)
-                except Exception, e:
+                except Exception as e:
                     logging.exception(e)
             self.streams = {}
 
@@ -689,7 +689,7 @@ class KansasGameHandler(KansasHandler):
                         'time': time.time(),
                     }),
                     binary=False)
-            except Exception, e:
+            except Exception as e:
                 logging.exception(e)
                 logging.warning("Removing broken stream %s", stream)
                 presence_changed = True
@@ -700,13 +700,13 @@ class KansasGameHandler(KansasHandler):
 
     def gc_streams(self):
         with self._lock:
-            for stream in self.streams.keys():
+            for stream in list(self.streams.keys()):
                 last = self.streams[stream]['last_keepalive']
                 if time.time() - last > 60:
                     try:
                         del self.streams[stream]
                         stream.close_connection(wait_response=False)
-                    except Exception, e:
+                    except Exception as e:
                         logging.exception(e)
 
     def presence_count(self):
@@ -717,14 +717,14 @@ class KansasGameHandler(KansasHandler):
     def presence_breakdown(self):
         with self._lock:
             self.gc_streams()
-            return self.streams.values()
+            return list(self.streams.values())
 
     def notify_presence(self):
         with self._lock:
             self.broadcast(
                 set(self.streams.keys()),
                 'presence',
-                self.streams.values())
+                list(self.streams.values()))
 
     def notify_closed(self, stream):
         with self._lock:
@@ -771,12 +771,12 @@ stats.start()
 
 
 def recursiveEscape(obj):
-    if type(obj) in [str, unicode]:
-        return cgi.escape(obj).replace('"', "'")
+    if isinstance(obj, str):
+        return html.escape(obj).replace('"', "'")
     elif type(obj) is dict:
         out = {}
-        for k, v in obj.items():
-            out[cgi.escape(k)] = recursiveEscape(v)
+        for k, v in list(obj.items()):
+            out[html.escape(k)] = recursiveEscape(v)
         return out
     elif type(obj) is list:
         return [recursiveEscape(x) for x in obj]
@@ -814,16 +814,16 @@ def web_socket_transfer_data(request):
                 req['type'],
                 data,
                 output)
-        except KansasRedirect, e:
+        except KansasRedirect as e:
             logging.info("redirecting to: " + e.url)
             request.ws_stream.send_message(
                json.dumps({
                     'type': 'redirect',
-                    'msg': e.message,
+                    'msg': str(e),
                     'url': e.url,
                }),
                binary=False)
-        except Exception, e:
+        except Exception as e:
             logging.exception(e)
             request.ws_stream.send_message(
                json.dumps({'type': 'error', 'msg': str(e)}),
