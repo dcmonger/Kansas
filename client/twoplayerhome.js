@@ -271,7 +271,7 @@ $(document).ready(function() {
     });
 
     var scope = localstore.get('scope', 'DEFAULT');
-    var sourceid = localstore.get('sourceid', 'localdb');
+    var sourceid = localstore.get('sourceid', 'scryfall');
     var scopeset_URL = false;
     var sourceset_URL = false;
     var scopeset = false;

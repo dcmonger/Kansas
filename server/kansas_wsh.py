@@ -291,8 +291,11 @@ class KansasHandler(object):
             total += count
             stream, _ = datasource.Find(self.sourceid, term, True)
             if stream:
-                resp[term] = stream[0]
-                cards[stream[0]['name']] = count
+                card = stream[0]
+                # Keep bulkquery response backwards-compatible with the UI,
+                # which expects a URL string for each term.
+                resp[term] = card.get('img_url')
+                cards[card['name']] = count
             else:
                 resp[term] = None
         suggested = datasource.Complete(self.sourceid, cards)
@@ -378,7 +381,7 @@ class KansasInitHandler(KansasHandler):
         sourceid = request['datasource']
 
         if not datasource.IsValid(sourceid):
-            sourceid = datasource.AllSources()[0]
+            sourceid = 'scryfall' if datasource.IsValid('scryfall') else datasource.AllSources()[0]
         elif not scope:
             scope = "DEFAULT"
 
