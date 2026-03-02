@@ -54,5 +54,5 @@ if [ "$FREE_HTTP_PORT" != "$HTTP_PORT" ]; then
 fi
 
 echo "Starting static server on port $HTTP_PORT and websocket server on port $WS_PORT"
-python3 -m http.server "$HTTP_PORT" &
+python3 -m server.static_server "$HTTP_PORT" &
 ./test_server.py "$WS_PORT" | tee -a kansas-server.log
