@@ -663,14 +663,24 @@ class ScryfallPlugin(DefaultPlugin):
         return Catalog.makeDecks(term, num_decks)
 
     def _open_json(self, url):
-        logging.info("GET %s", url)
+        logging.info("Scryfall request: GET %s", url)
         req = urllib.request.Request(
             url,
             headers={'User-Agent': 'kansas/1.0 (+https://github.com/)'}
         )
         with self._direct_opener.open(req, timeout=10) as resp:
             data = resp.read().decode('utf-8', errors='ignore')
-        return json.loads(data)
+        payload = json.loads(data)
+        if isinstance(payload, dict):
+            logging.info(
+                "Scryfall response: object=%s total_cards=%s has_more=%s",
+                payload.get('object'),
+                payload.get('total_cards'),
+                payload.get('has_more'),
+            )
+        else:
+            logging.info("Scryfall response: payload_type=%s", type(payload).__name__)
+        return payload
 
     def _to_entry(self, card):
         image_uris = card.get('image_uris') or {}
@@ -698,9 +708,16 @@ class ScryfallPlugin(DefaultPlugin):
             url = '%s/cards/named?exact=%s' % (self.API_ROOT, urllib.parse.quote(name))
             try:
                 payload = self._open_json(url)
-            except (urllib.error.HTTPError, urllib.error.URLError):
+            except (urllib.error.HTTPError, urllib.error.URLError) as e:
+                logging.warning("Scryfall exact lookup failed for '%s': %s", name, e)
                 return [], {'has_more': False, 'more_url': ''}
             entry = self._to_entry(payload)
+            logging.info(
+                "Scryfall exact result: term='%s' found=%s card_name='%s'",
+                name,
+                bool(entry),
+                (entry or {}).get('name', ''),
+            )
             return ([entry] if entry else []), {'has_more': False, 'more_url': ''}
 
         q = name.strip()
@@ -709,7 +726,8 @@ class ScryfallPlugin(DefaultPlugin):
             self.API_ROOT, urllib.parse.quote(q))
         try:
             payload = self._open_json(url)
-        except (urllib.error.HTTPError, urllib.error.URLError):
+        except (urllib.error.HTTPError, urllib.error.URLError) as e:
+            logging.warning("Scryfall search lookup failed for '%s': %s", q, e)
             return [], {'has_more': False, 'more_url': ''}
         stream = []
         for card in payload.get('data', []):
@@ -723,6 +741,12 @@ class ScryfallPlugin(DefaultPlugin):
             'has_more': bool(payload.get('has_more', False)),
             'more_url': payload.get('next_page', ''),
         }
+        logging.info(
+            "Scryfall search result: term='%s' returned=%d has_more=%s",
+            q,
+            len(stream),
+            meta['has_more'],
+        )
         return stream, meta
 
 

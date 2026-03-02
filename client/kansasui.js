@@ -2172,8 +2172,17 @@ KansasUI.prototype.init = function(client, uuid, user, orient, gameid, gender, u
         }
         that.fyi(that.user + " has added " + that.pronoun() + " new deck to the board.");
         var f = client.callAsync('add', {'cards': toAdd, 'requestor': uuid});
-        hideDeckPanel();
-        f.then(function() {
+        f.then(function(resp) {
+            var added = resp && resp.added || 0;
+            var requested = resp && resp.requested || toAdd.length;
+            if (added <= 0) {
+                that.fyi("No cards were added. Try clicking Validate and checking card names.");
+                return;
+            }
+            if (added < requested) {
+                that.fyi("Added " + added + " of " + requested + " cards.");
+            }
+            hideDeckPanel();
             var oldHand = client.getStack('hands', that.hand_user);
             if (oldHand) {
                 client.callAsync('remove', oldHand);
