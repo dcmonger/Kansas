@@ -2096,7 +2096,7 @@ KansasUI.prototype.init = function(client, uuid, user, orient, gameid, gender, u
         }).then(function() { that._refreshDeckList(); });
     });
 
-    $("#switchside").live('mouseup', function(e) {
+    $(document).on('mouseup', "#switchside", function(e) {
         var orient = that.orient;
         if (orient == "player1") {
             orient = "player2";
@@ -2108,7 +2108,7 @@ KansasUI.prototype.init = function(client, uuid, user, orient, gameid, gender, u
         document.location.reload();
     });
 
-    $(".deletedeck").live('mouseup', function(e) {
+    $(document).on('mouseup', ".deletedeck", function(e) {
         var name = $(e.currentTarget).data("name");
         if (confirm("Are you sure you want to delete '" + name + "'?")) {
             client.callAsync('kvop', {
@@ -2119,7 +2119,7 @@ KansasUI.prototype.init = function(client, uuid, user, orient, gameid, gender, u
         }
     });
 
-    $(".loaddeck").live('mouseup', function(e) {
+    $(document).on('mouseup', ".loaddeck", function(e) {
         var name = $(e.currentTarget).data("name");
         if (!name) {
             return;
@@ -2233,14 +2233,14 @@ KansasUI.prototype.init = function(client, uuid, user, orient, gameid, gender, u
         that.disableArenaEvents = true;
     });
 
-    $(".hovermenu li").live('mousedown', function(event) {
+    $(document).on('mousedown', ".hovermenu li", function(event) {
         var target = $(event.currentTarget);
         if (!target.hasClass("poisoned")) {
             target.addClass("hover");
         }
     });
 
-    $(".hovermenu li, .hoverlink").live('mouseup', function(event) {
+    $(document).on('mouseup', ".hovermenu li, .hoverlink", function(event) {
         var target = $(event.currentTarget);
         if (target.hasClass("poisoned")) {
             return;

@@ -13,6 +13,13 @@ import time
 import urllib.request, urllib.error, urllib.parse
 
 
+_SERVER_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def _server_path(*parts):
+    return os.path.normpath(os.path.join(_SERVER_DIR, *parts))
+
+
 kThemeBlacklist = { 'of', 'them', 'while', 'bad', 'size', 'share', 'combination', 'exactly', 'opponents', 'shuffles', 'attach', 'turned', 'lost', 'step', 'become', 'attacked', 'produces', 'shares', 'putting', 'second', 'storage', 'abilities', 'blockers', 'upkeep', 'evoke', 'rebound', 'players', 'already', 'tied', 'unpaired', 'unattached', 'deck', 'exchange', 'away', 'been', 'twice', 'returned', 'opening', 'text', 'once', 'leaves', 'leave', 'choice', 'stays', 'still', 'spent', 'returned', 'colorless', 'also', 'a', 'types', 'fewer', 'will', 'reveals', 'single', 'died', 'exchange' 'effect', 'nonbasic', 'word', 'words', 'kit', 'paid', 'random', 'sources', 'casts', 'the', 'in', 'remain', 'false', 'spend', 'total', 'move', 'played', 'entered', 'activated', 'greatest', 'affinity', 'instead', 'declare', 'which', 'attached', 'instead', 'play', 'increasing', 'does', 'assign', 'noncreature', 'unblocked', 'costs', 'kind', 'named', 'maximum', 'greatest', 'owner', 'take', 'remains', 'colors', 'common', 'rather', 'empty', 'there', 'untapped', 'form', 'source', 'flip', 'removed', 'both', 'nontoken', 'for', 'soon', 'much', 'nonwhite', 'nonblack', 'nonred', 'nonblue', 'nongreen', 'loss', 'after', 'before', 'same', 'could', 'begin', 'being', 'bottom', 'and', 'or', 'either', 'draws', 'lasts', 'comes', 'plays', 'change', 'instances', 'third', 'five', 'adds', 'since', 'targets', 'least', 'unattach', 'amount', 'game', 'they', 'one', 'pair', 'discarding', 'causes', 'convoke', 'cause', 'effects', 'back', 'most', 'enough', 'repeat', 'attackers', 'keeps', 'down', 'wins', 'blocks', 'regular', 'untaps', 'forces', 'chooses', 'many', 'enter', 'says', 'treated', 'name', 'call', 'every', 'must', 'though', 'cause', 'give' }
 
 
@@ -171,12 +178,15 @@ class CardCatalog(object):
         self.byCost = collections.defaultdict(list)
         self.byTokens = collections.defaultdict(list)
         try:
-            self.newCards = set([sanitize(x[2:-1]) for x in
-                open(classifyFile).readlines() if x[0] == "0"])
-            self.classifiedCards = set([sanitize(x[2:-1]) for x in
-                open(classifyFile).readlines()])
+            if os.path.exists(classifyFile):
+                self.newCards = set([sanitize(x[2:-1]) for x in
+                    open(classifyFile).readlines() if x[0] == "0"])
+                self.classifiedCards = set([sanitize(x[2:-1]) for x in
+                    open(classifyFile).readlines()])
+            else:
+                raise FileNotFoundError(classifyFile)
         except Exception as e:
-            logging.warning("Failed to load classification: %s", e)
+            logging.info("Failed to load classification: %s", e)
             self.newCards = set()
         try:
             for c in csv.reader(open(catalogFile), escapechar='\\'):
@@ -188,7 +198,7 @@ class CardCatalog(object):
                 except Exception as e:
                     logging.warning("Failed to parse %s: %s", c, e)
         except Exception as e:
-            logging.warning("Failed to load catalog: %s", e)
+            logging.info("Failed to load catalog: %s", e)
             self.initialized = False
         if not os.path.exists(self.dbPath):
             os.makedirs(self.dbPath, exist_ok=True)
@@ -449,11 +459,15 @@ class CardCatalog(object):
 Catalog = None
 def initCatalog():
     global Catalog
-    Catalog = CardCatalog("../mtg_info.txt", "../classification.txt", "../localdb")
+    Catalog = CardCatalog(
+        _server_path("..", "mtg_info.txt"),
+        _server_path("..", "classification.txt"),
+        _server_path("..", "localdb"),
+    )
 
 
 class LocalDBPlugin(DefaultPlugin):
-    DB_PATH = '../localdb'
+    DB_PATH = _server_path('..', 'localdb')
 
     def __init__(self):
         initCatalog()

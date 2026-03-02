@@ -28,9 +28,15 @@ $.extend({
         ws.recvCount = 0;
         ws.lastSent = new Date();
         ws.lastAction = new Date();
+        ws._pendingMessages = [];
         ws._settings = $.extend($.websocketSettings, s);
         $(ws)
-            .bind('open', $.websocketSettings.open)
+            .bind('open', function(e) {
+                while (ws._pendingMessages.length && ws.readyState === 1) {
+                    ws._send(ws._pendingMessages.shift());
+                }
+                $.websocketSettings.open.call(this, e);
+            })
             .bind('close', $.websocketSettings.close)
             .bind('message', $.websocketSettings.message)
             .bind('message', function(e) {
@@ -59,7 +65,15 @@ $.extend({
             m = $.extend(true, m, $.extend(true, {}, $.websocketSettings.options, m));
             if (data) m['data'] = data;
             if (future_id) m['future_id'] = future_id;
-            return this._send(JSON.stringify(m));
+            var payload = JSON.stringify(m);
+            if (ws.readyState === 0) {
+                ws._pendingMessages.push(payload);
+                return false;
+            }
+            if (ws.readyState !== 1) {
+                return false;
+            }
+            return this._send(payload);
         }
         $(window).unload(function(){ ws.close(); ws = null });
         return ws;
