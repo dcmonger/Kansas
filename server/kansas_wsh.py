@@ -201,12 +201,18 @@ class KansasGameState(object):
     def add_card(self, card):
         tohand = card.get('tohand')
         loc = card['loc']
-        name = card['name']
+        name = " ".join(str(card.get('name', '')).split())
+        if not name:
+            logging.warning("Skipping add of unnamed card payload: %s", card)
+            return None
         stream, _ = datasource.Find(self.sourceid, name, exact=True)
+        if not stream:
+            stream, _ = datasource.Find(self.sourceid, name, exact=False, limit=1)
         if stream:
             url = stream[0]['img_url']
         else:
-            raise Exception("Cannot find '%s'" % name);
+            logging.warning("Cannot find card '%s' for source '%s'", name, self.sourceid)
+            return None
         card_id = self.data.new_card(url)
         if tohand:
             key = 'hands'
@@ -602,9 +608,12 @@ class KansasGameHandler(KansasHandler):
     def handle_add(self, req, output):
         with self._lock:
             added = []
+            requested = len(req.get('cards', []))
             requestor = req['requestor']
             for card in req['cards']:
                 new_id = self._state.add_card(card)
+                if new_id is None:
+                    continue
                 added.append({
                     'id': new_id,
                     'orient': self._state.data['orientations'][new_id],
@@ -620,7 +629,10 @@ class KansasGameHandler(KansasHandler):
                     'requestor': requestor,
                 })
             self.save()
-        output.reply("done")
+        output.reply({
+            'added': len(added),
+            'requested': requested,
+        })
 
     def handle_samplecards(self, req, output):
         output.reply(datasource.Sample(self.sourceid))
