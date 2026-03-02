@@ -10,12 +10,16 @@ import random
 import threading
 import time
 import urllib.request
-import decks
+
+try:
+    from . import decks
+except ImportError:
+    import decks
 
 try:
     from PIL import Image
     haveImaging = True
-except:
+except Exception:
     logging.warning("Failed to import imaging module.")
     haveImaging = False
 
@@ -81,8 +85,9 @@ class CachingLoader(dict):
         """Resizes image found at large_path and saves to small_path."""
         if haveImaging:
             logging.info("Resize %s -> %s" % (large_path, small_path))
+            resampling = getattr(Image, "Resampling", Image).LANCZOS
             Image.open(large_path)\
-                 .resize(kSmallImageSize, Image.ANTIALIAS)\
+                 .resize(kSmallImageSize, resampling)\
                  .save(small_path)
             return small_path
         else:
@@ -91,7 +96,7 @@ class CachingLoader(dict):
     def toAbsoluteURL(self, url):
         if url.startswith('/'):
             return kLocalServingAddress + url
-        if url.startswith('http:'):
+        if url.startswith(('http:', 'https:')):
             return url
         else:
             return self.oldPrefix + url
@@ -187,7 +192,7 @@ class KansasGameState(object):
         if dest_type == 'board':
             dest_key = int(dest_key)
         else:
-            assert type(dest_key) in [str, str], type(dest_key)
+            assert isinstance(dest_key, str), type(dest_key)
         assert dest_orient in range(-4, 5)
 
         src_type, src_key = self.index[card]
