@@ -1692,16 +1692,27 @@ KansasUI.prototype.init = function(client, uuid, user, orient, gameid, gender, u
     this.gender = gender;
     this.oldtitle = document.title;
 
+    function debugStep(step, details) {
+        if (!window.KANSAS_DEBUG) {
+            return;
+        }
+        if (details !== undefined) {
+            console.log("[KANSAS_DEBUG] step=" + step + " details=", details);
+        } else {
+            console.log("[KANSAS_DEBUG] step=" + step);
+        }
+    }
+
     if (window.KANSAS_DEBUG) {
         this.vlog(0, "KansasUI debug mode active.");
         $(document).off("load.kansasDebug error.kansasDebug", "img");
         $(document).on("load.kansasDebug", "img", function() {
             var img = $(this);
-            console.log("IMG load:", img.attr("id") || "(no-id)", img.attr("src"));
+            console.log("[KANSAS_DEBUG] step=preview_image_loaded id=", img.attr("id") || "(no-id)", "src=", img.attr("src"));
         });
         $(document).on("error.kansasDebug", "img", function() {
             var img = $(this);
-            console.error("IMG error:", img.attr("id") || "(no-id)", img.attr("src"));
+            console.error("[KANSAS_DEBUG] step=preview_image_load_failed id=", img.attr("id") || "(no-id)", "src=", img.attr("src"));
         });
     }
 
@@ -1710,23 +1721,34 @@ KansasUI.prototype.init = function(client, uuid, user, orient, gameid, gender, u
     }
 
     function doValidate(inPlace) {
+        debugStep("preview_clicked", { inPlace: !!inPlace });
         var html = $("#deckinput").html();
+        debugStep("deckinput_read", { htmlLength: html ? html.length : 0 });
         var cards = extractCards(html)[0];
+        debugStep("deckinput_parsed", { parsedCards: cards.length });
         that.vlog(2, "validating cards: " + JSON.stringify(cards));
         that._setDeckInputHtml(cardsToHtml(cards, 'maybe_valid'));
+        debugStep("deckinput_marked_maybe_valid");
+        var queryTerms = $.map(cards, function(x) {
+            if (x[0] > 0) {
+                return [[x[0], x[1]]];
+            } else {
+                return [];
+            }
+        });
+        debugStep("bulkquery_sending", { terms: queryTerms.length });
         client.callAsync('bulkquery', {
-            'terms': $.map(cards, function(x) {
-                if (x[0] > 0) {
-                    return [[x[0], x[1]]];
-                } else {
-                    return [];
-                }
-            }),
+            'terms': queryTerms,
         }).then(function(data) {
+            debugStep("bulkquery_success", {
+                responseKeys: Object.keys(data.resp || {}).length,
+                suggestions: (data['suggested'] || []).length,
+            });
             var html = $("#deckinput").html();
             var cards = extractCards(html)[0];
             var resp = cardsToHtml(cards, 'validated', data.resp);
             that._setDeckInputHtml(resp);
+            debugStep("deckinput_marked_validated", { parsedCards: cards.length });
             var urls = [];
             var counts = [];
             for (i in cards) {
@@ -1736,14 +1758,20 @@ KansasUI.prototype.init = function(client, uuid, user, orient, gameid, gender, u
                     urls.push(url);
                 }
             }
+            debugStep("preview_urls_built", { urls: urls.length });
             if (urls.length > 0) {
                 that.searcher.previewItems(urls, null, null, counts, undefined, data['suggested']);
+                debugStep("preview_render_requested", { urls: urls.length });
                 if (!inPlace) {
                     $("#search_preview").scrollTop(0);
+                    debugStep("preview_scrolled_to_top");
                 }
             } else {
                 $("#search_preview").hide();
+                debugStep("preview_hidden_no_valid_urls");
             }
+        }, function(err) {
+            console.error("[KANSAS_DEBUG] step=bulkquery_failed error=", err);
         });
     }
 
