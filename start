@@ -1,10 +1,44 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HTTP_PORT=8000
-if [ "$(id -u)" = "0" ]; then
-  HTTP_PORT=80
+if [ "${HTTP_PORT:-}" = "" ]; then
+  HTTP_PORT=8000
+  if [ "$(id -u)" = "0" ]; then
+    HTTP_PORT=80
+  fi
 fi
 
+if [ "${WS_PORT:-}" = "" ]; then
+  WS_PORT=8080
+fi
+
+pick_free_port() {
+  local port="$1"
+  local tries="${2:-25}"
+  local candidate="$port"
+  local i=0
+
+  while [ "$i" -lt "$tries" ]; do
+    if python3 -c "import socket,sys; s=socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1); s.bind(('127.0.0.1', int(sys.argv[1]))); s.close()" "$candidate" >/dev/null 2>&1; then
+      echo "$candidate"
+      return 0
+    fi
+    candidate=$((candidate + 1))
+    i=$((i + 1))
+  done
+  return 1
+}
+
+if ! FREE_HTTP_PORT="$(pick_free_port "$HTTP_PORT")"; then
+  echo "Failed to find a free HTTP port starting from $HTTP_PORT" >&2
+  exit 1
+fi
+
+if [ "$FREE_HTTP_PORT" != "$HTTP_PORT" ]; then
+  echo "HTTP port $HTTP_PORT is busy; using $FREE_HTTP_PORT instead." >&2
+  HTTP_PORT="$FREE_HTTP_PORT"
+fi
+
+echo "Starting static server on port $HTTP_PORT and websocket server on port $WS_PORT"
 python3 -m http.server "$HTTP_PORT" &
-./test_server.py 8080 | tee -a kansas-server.log
+./test_server.py "$WS_PORT" | tee -a kansas-server.log
