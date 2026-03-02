@@ -32,6 +32,7 @@ except ImportError:
 Games = namespaces.Namespace(config.kDBPath, 'Games', version=2)
 ClientDB = namespaces.Namespace(config.kDBPath, 'ClientDB', version=2)
 GlobalDB = namespaces.Namespace(config.kDBPath, 'Global', version=0)
+DEBUG_VERBOSE = os.environ.get("KANSAS_DEBUG", "").lower() in ("1", "true", "yes", "on")
 
 
 def SubspaceKey(scope, sourceid):
@@ -817,6 +818,8 @@ def web_socket_transfer_data(request):
             return
         try:
             req = json.loads(line)
+            if DEBUG_VERBOSE:
+                logging.info("ws recv: %s", req)
             logging.debug("Parsed json %s", req)
             logging.debug("Handler %s", type(currentHandler))
             logging.debug("Request type %s", req['type'])
@@ -831,6 +834,8 @@ def web_socket_transfer_data(request):
                 req['type'],
                 data,
                 output)
+            if DEBUG_VERBOSE:
+                logging.info("ws handled type=%s", req['type'])
         except KansasRedirect as e:
             logging.info("redirecting to: " + e.url)
             request.ws_stream.send_message(

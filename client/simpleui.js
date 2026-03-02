@@ -6,7 +6,7 @@ function SimpleUI() {
 
 (function() {  /* begin namespace simpleui */
 
-var LOGLEVEL = 2;
+var LOGLEVEL = window.KANSAS_LOGLEVEL || 2;
 
 SimpleUI.prototype.init = function(client) {
     this.client = client;

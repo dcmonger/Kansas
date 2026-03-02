@@ -183,6 +183,7 @@ KansasClient.prototype.callAsync = function(tag, data) {
     var uniq_tag = tag + "_" + Math.random().toString(36).substring(2);
     var fut = new Future();
     if (this._ws != null) {
+        this._debugLog("callAsync " + tag + " future=" + uniq_tag, data);
         this._ws.send(tag, data, uniq_tag);
         this._futures[uniq_tag] = fut;
     }
@@ -191,7 +192,18 @@ KansasClient.prototype.callAsync = function(tag, data) {
 
 /* Sends message without creating a Future.
  * The client will be "Loading..." until any ack is received on the socket. */
+KansasClient.prototype._debugLog = function(msg, obj) {
+    if (window.KANSAS_DEBUG) {
+        if (obj !== undefined) {
+            console.log("[KANSAS DEBUG] " + msg, obj);
+        } else {
+            console.log("[KANSAS DEBUG] " + msg);
+        }
+    }
+}
+
 KansasClient.prototype.send = function(tag, data) {
+    this._debugLog("send " + tag, data);
     if (this._ws != null) {
         this._ws.send(tag, data);
     }
@@ -367,6 +379,7 @@ function removeFromArray(arr, item) {
 KansasClient.prototype._eventHandlers = function(that) {
     return {
         _future_router: function(e) {
+            that._debugLog("future response " + e.future_id, e.data);
             if (that._futures[e.future_id]) {
                 that._futures[e.future_id].done(e.data);
                 delete that._futures[e.future_id];
@@ -390,6 +403,7 @@ KansasClient.prototype._eventHandlers = function(that) {
             checkVersion(e.data.client_version_required);
         },
         broadcast_message: function(e) {
+            that._debugLog("broadcast_message", e.data);
             that._notify('broadcast', e.data);
         },
         keepalive_resp: function(e) {
@@ -397,6 +411,7 @@ KansasClient.prototype._eventHandlers = function(that) {
         broadcast_resp: function(e) {
         },
         connect_resp: function(e) {
+            that._debugLog("connect_resp", e.data);
             that._state = 'connected';
             that._reset(e.data[0]);
         },
@@ -408,6 +423,7 @@ KansasClient.prototype._eventHandlers = function(that) {
             that._notify('removed', e.data);
         },
         bulk_add: function(e) {
+            that._debugLog("bulk_add", e.data);
             var state = that._game.state;
             var added = [];
             for (i in e.data.cards) {
@@ -427,6 +443,7 @@ KansasClient.prototype._eventHandlers = function(that) {
             that._notify('added', {'cards': added, 'requestor': e.data.requestor});
         },
         bulkupdate: function(e) {
+            that._debugLog("bulkupdate", e.data);
             var stacksTouched = {};
 
             for (i in e.data) {
@@ -456,6 +473,7 @@ KansasClient.prototype._eventHandlers = function(that) {
             }
         },
         presence: function(e) {
+            that._debugLog("presence", e.data);
             that._notify('presence', e.data, true);
         },
     };
