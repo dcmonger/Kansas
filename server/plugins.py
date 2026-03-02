@@ -650,7 +650,8 @@ class ScryfallPlugin(DefaultPlugin):
 
     def __init__(self):
         # Some hosted environments set HTTP(S)_PROXY to an egress proxy that
-        # blocks Scryfall. Use a direct opener so card lookups don't fail.
+        # blocks Scryfall, while others require that proxy for egress.
+        # Keep both paths and fall back between them.
         self._direct_opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
     def GetBackUrl(self):
@@ -668,8 +669,27 @@ class ScryfallPlugin(DefaultPlugin):
             url,
             headers={'User-Agent': 'kansas/1.0 (+https://github.com/)'}
         )
-        with self._direct_opener.open(req, timeout=10) as resp:
-            data = resp.read().decode('utf-8', errors='ignore')
+        data = None
+        errors = []
+
+        try:
+            with self._direct_opener.open(req, timeout=10) as resp:
+                data = resp.read().decode('utf-8', errors='ignore')
+        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as e:
+            errors.append(('direct', e))
+            logging.warning("Scryfall direct request failed, retrying with system proxy config: %s", e)
+
+        if data is None:
+            try:
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    data = resp.read().decode('utf-8', errors='ignore')
+            except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as e:
+                errors.append(('default', e))
+
+        if data is None:
+            details = '; '.join(["%s=%s" % (kind, err) for kind, err in errors])
+            raise urllib.error.URLError("Scryfall request failed (%s)" % details)
+
         payload = json.loads(data)
         if isinstance(payload, dict):
             logging.info(
