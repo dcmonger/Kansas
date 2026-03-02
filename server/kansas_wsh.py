@@ -381,7 +381,7 @@ class KansasInitHandler(KansasHandler):
         sourceid = request['datasource']
 
         if not datasource.IsValid(sourceid):
-            sourceid = 'scryfall' if datasource.IsValid('scryfall') else datasource.AllSources()[0]
+            sourceid = datasource.AllSources()[0]
         elif not scope:
             scope = "DEFAULT"
 
