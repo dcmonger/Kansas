@@ -648,6 +648,11 @@ class ScryfallPlugin(DefaultPlugin):
 
     API_ROOT = 'https://api.scryfall.com'
 
+    def __init__(self):
+        # Some hosted environments set HTTP(S)_PROXY to an egress proxy that
+        # blocks Scryfall. Use a direct opener so card lookups don't fail.
+        self._direct_opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
     def GetBackUrl(self):
         return '/third_party/images/mtg_detail.jpg'
 
@@ -663,7 +668,7 @@ class ScryfallPlugin(DefaultPlugin):
             url,
             headers={'User-Agent': 'kansas/1.0 (+https://github.com/)'}
         )
-        with urllib.request.urlopen(req) as resp:
+        with self._direct_opener.open(req, timeout=10) as resp:
             data = resp.read().decode('utf-8', errors='ignore')
         return json.loads(data)
 
@@ -693,7 +698,7 @@ class ScryfallPlugin(DefaultPlugin):
             url = '%s/cards/named?exact=%s' % (self.API_ROOT, urllib.parse.quote(name))
             try:
                 payload = self._open_json(url)
-            except urllib.error.HTTPError:
+            except (urllib.error.HTTPError, urllib.error.URLError):
                 return [], {'has_more': False, 'more_url': ''}
             entry = self._to_entry(payload)
             return ([entry] if entry else []), {'has_more': False, 'more_url': ''}
@@ -702,7 +707,10 @@ class ScryfallPlugin(DefaultPlugin):
         page_size = min(int(limit or 20), 175)
         url = '%s/cards/search?q=%s&order=name&unique=cards&include_multilingual=false&page=1' % (
             self.API_ROOT, urllib.parse.quote(q))
-        payload = self._open_json(url)
+        try:
+            payload = self._open_json(url)
+        except (urllib.error.HTTPError, urllib.error.URLError):
+            return [], {'has_more': False, 'more_url': ''}
         stream = []
         for card in payload.get('data', []):
             entry = self._to_entry(card)
