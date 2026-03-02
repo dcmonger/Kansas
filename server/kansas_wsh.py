@@ -15,6 +15,7 @@ import threading
 import time
 import html
 import urllib.parse
+import traceback
 
 try:
     from PIL import Image
@@ -828,9 +829,14 @@ def web_socket_transfer_data(request):
                }),
                binary=False)
         except Exception as e:
+            tb = traceback.format_exc()
             logging.exception(e)
             request.ws_stream.send_message(
-               json.dumps({'type': 'error', 'msg': str(e)}),
+               json.dumps({
+                   'type': 'error',
+                   'msg': str(e),
+                   'details': tb,
+               }),
                binary=False)
 
 

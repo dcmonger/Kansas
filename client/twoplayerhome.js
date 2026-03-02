@@ -127,6 +127,7 @@ function handleRedirect(e) {
 }
 
 function handleError(msg) {
+    console.error("Kansas server error:", msg);
     kansas_ui.warning("Server: " + msg);
 }
 
