@@ -3,13 +3,14 @@
 import collections
 import csv
 import glob
+import json
 import logging
 import os
 import random
 import re
 import shlex
 import time
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 
 
 kThemeBlacklist = { 'of', 'them', 'while', 'bad', 'size', 'share', 'combination', 'exactly', 'opponents', 'shuffles', 'attach', 'turned', 'lost', 'step', 'become', 'attacked', 'produces', 'shares', 'putting', 'second', 'storage', 'abilities', 'blockers', 'upkeep', 'evoke', 'rebound', 'players', 'already', 'tied', 'unpaired', 'unattached', 'deck', 'exchange', 'away', 'been', 'twice', 'returned', 'opening', 'text', 'once', 'leaves', 'leave', 'choice', 'stays', 'still', 'spent', 'returned', 'colorless', 'also', 'a', 'types', 'fewer', 'will', 'reveals', 'single', 'died', 'exchange' 'effect', 'nonbasic', 'word', 'words', 'kit', 'paid', 'random', 'sources', 'casts', 'the', 'in', 'remain', 'false', 'spend', 'total', 'move', 'played', 'entered', 'activated', 'greatest', 'affinity', 'instead', 'declare', 'which', 'attached', 'instead', 'play', 'increasing', 'does', 'assign', 'noncreature', 'unblocked', 'costs', 'kind', 'named', 'maximum', 'greatest', 'owner', 'take', 'remains', 'colors', 'common', 'rather', 'empty', 'there', 'untapped', 'form', 'source', 'flip', 'removed', 'both', 'nontoken', 'for', 'soon', 'much', 'nonwhite', 'nonblack', 'nonred', 'nonblue', 'nongreen', 'loss', 'after', 'before', 'same', 'could', 'begin', 'being', 'bottom', 'and', 'or', 'either', 'draws', 'lasts', 'comes', 'plays', 'change', 'instances', 'third', 'five', 'adds', 'since', 'targets', 'least', 'unattach', 'amount', 'game', 'they', 'one', 'pair', 'discarding', 'causes', 'convoke', 'cause', 'effects', 'back', 'most', 'enough', 'repeat', 'attackers', 'keeps', 'down', 'wins', 'blocks', 'regular', 'untaps', 'forces', 'chooses', 'many', 'enter', 'says', 'treated', 'name', 'call', 'every', 'must', 'though', 'cause', 'give' }
@@ -67,11 +68,14 @@ landsByColor = {
     'G': 'Forest',
 }
 
-def sanitize(s):
-    return s \
-        .replace("\xc3\x86", "Ae") \
-        .replace("\xc3\xa1", "a") \
-        .decode('ascii', errors='ignore')
+def sanitize(value):
+    if isinstance(value, bytes):
+        value = value.decode('utf-8', errors='ignore')
+    return value \
+        .replace("Æ", "Ae") \
+        .replace("á", "a") \
+        .encode('ascii', errors='ignore') \
+        .decode('ascii')
 
 class MagicCard(object):
 
@@ -171,7 +175,7 @@ class CardCatalog(object):
                 open(classifyFile).readlines() if x[0] == "0"])
             self.classifiedCards = set([sanitize(x[2:-1]) for x in
                 open(classifyFile).readlines()])
-        except Exception, e:
+        except Exception as e:
             logging.warning("Failed to load classification: %s", e)
             self.newCards = set()
         try:
@@ -181,27 +185,29 @@ class CardCatalog(object):
                     if card.name in self.newCards:
                         card.goodQuality = True
                     self._register(card)
-                except Exception, e:
+                except Exception as e:
                     logging.warning("Failed to parse %s: %s", c, e)
-        except Exception, e:
+        except Exception as e:
             logging.warning("Failed to load catalog: %s", e)
             self.initialized = False
+        if not os.path.exists(self.dbPath):
+            os.makedirs(self.dbPath, exist_ok=True)
         for c in os.listdir(self.dbPath):
             if not c.endswith(".jpg"):
                 continue
             name = c[:-4]
             if name not in self.byName:
-                print "WARNING: card missing metadata: " + name
+                print("WARNING: card missing metadata: " + name)
                 card = MagicCard([name, '', '', '', '', '', '', ''])
                 self._register(card)
         logging.info("Done building card catalog.")
         self.topTokens = []
-        for k, v in self.byTokens.iteritems():
+        for k, v in self.byTokens.items():
             if len(v) >= 10 and len(v) < 170 and re.match('^[a-z]+$', k):
                 if k not in kThemeBlacklist:
                     self.topTokens.append(k)
         logging.info("%d possible themes", len(self.topTokens))
-        print self.topTokens
+        print(self.topTokens)
 
         self.byLand = {
             'Plains': 'W',
@@ -269,7 +275,7 @@ class CardCatalog(object):
     def complete(self, cards):
         deck = {}
         total = 0
-        for k, v in cards.iteritems():
+        for k, v in cards.items():
             total += v
             try:
                 deck[k] = self.byName[k]
@@ -279,11 +285,11 @@ class CardCatalog(object):
         if total >= 60:
             return []
         colorVotes = collections.defaultdict(float)
-        for card in deck.values():
+        for card in list(deck.values()):
             colors = card.colors()
             for color in colors:
                 colorVotes[color] += 1
-        rankedColors = sorted([(v, k) for (k, v) in colorVotes.items()], reverse=True)
+        rankedColors = sorted([(v, k) for (k, v) in list(colorVotes.items())], reverse=True)
         if len(rankedColors) == 0:
             land1 = random.choice(self.basicLands)
             if random.random() > .5:
@@ -402,7 +408,7 @@ class CardCatalog(object):
                 colors = card.colors()
                 for color in colors:
                     colorVotes[color] += 1.0 / (len(colors) + len(pool))
-        rankedColors = sorted([(v, k) for (k, v) in colorVotes.items()], reverse=True)
+        rankedColors = sorted([(v, k) for (k, v) in list(colorVotes.items())], reverse=True)
         if len(rankedColors) > 0:
             land1 = landsByColor[rankedColors[0][1]]
         else:
@@ -459,7 +465,7 @@ class LocalDBPlugin(DefaultPlugin):
         for f in os.listdir(self.DB_PATH):
             name = f.replace('_', '/').replace('.jpg', '')
             key = sanitize(name).lower()
-            self.catalog[key] = urllib2.quote(os.path.join(self.DB_PATH, f))
+            self.catalog[key] = urllib.parse.quote(os.path.join(self.DB_PATH, f))
             self.fullnames[key] = sanitize(name)
             self.index[key] = name
 
@@ -567,7 +573,7 @@ class LocalDBPlugin(DefaultPlugin):
                 parts = needle.split()
             parts, expanded = expand(parts)
             logging.info("Expanded query: " + str(parts) + " " + str(expanded))
-            for title, url in self.catalog.iteritems():
+            for title, url in self.catalog.items():
                 card = Catalog.bySlug.get(title)
                 rank = 0.0
                 if card and predicates:
@@ -602,7 +608,7 @@ class LocalDBPlugin(DefaultPlugin):
                         rank += rankit(p, has_bonus)
                 if rank >= 1:
                     ranked[rank].append(title)
-            ranks = sorted(ranked.keys(), reverse=True)
+            ranks = sorted(list(ranked.keys()), reverse=True)
             for r in ranks:
                 for title in ranked[r]:
                     stream.append({
@@ -624,7 +630,9 @@ class LocalDBPlugin(DefaultPlugin):
         return stream, meta
 
 
-class MagicCardsInfoPlugin(DefaultPlugin):
+class ScryfallPlugin(DefaultPlugin):
+
+    API_ROOT = 'https://api.scryfall.com'
 
     def GetBackUrl(self):
         return '/third_party/images/mtg_detail.jpg'
@@ -635,39 +643,66 @@ class MagicCardsInfoPlugin(DefaultPlugin):
     def SampleDeck(self, term, num_decks):
         return Catalog.makeDecks(term, num_decks)
 
+    def _open_json(self, url):
+        logging.info("GET %s", url)
+        req = urllib.request.Request(
+            url,
+            headers={'User-Agent': 'kansas/1.0 (+https://github.com/)'}
+        )
+        with urllib.request.urlopen(req) as resp:
+            data = resp.read().decode('utf-8', errors='ignore')
+        return json.loads(data)
+
+    def _to_entry(self, card):
+        image_uris = card.get('image_uris') or {}
+        if not image_uris and 'card_faces' in card:
+            for face in card['card_faces']:
+                if face.get('image_uris'):
+                    image_uris = face['image_uris']
+                    break
+
+        img_url = image_uris.get('normal') or image_uris.get('large') or image_uris.get('small')
+        if not img_url:
+            return None
+
+        return {
+            'name': card.get('name', ''),
+            'img_url': img_url,
+            'info_url': card.get('scryfall_uri', card.get('uri', '')),
+        }
+
     def Fetch(self, name, exact, limit):
         if name == '':
             return [], {}
 
-        def DoQuery(url):
-            logging.info("GET " + url)
-            req = urllib2.Request(url)
-            stream = urllib2.urlopen(req)
-            data = stream.read()
-            if 'selected="selected">View as a List' in data:
-                matches = re.finditer(
-                    r'<a href="/([a-z0-9]*)/en/([a-z0-9]*).html">(.*?)</a>',
-                    data)
-            else:
-                matches = re.finditer(
-                    r'<a href="/([a-z0-9]*)/en/([a-z0-9]*).html">(.*?)</a>\s+<img',
-                    data)
-            has_more = bool(re.findall('"\/query.*;p=2"', data))
-            stream = []
-            for m in matches:
-                m1, m2, m3 = m.group(1), m.group(2), m.group(3)
-                stream.append({
-                    'name': m3,
-                    'img_url': "http://magiccards.info/scans/en/%s/%s.jpg" % (m1, m2),
-                    'info_url': "http://magiccards.info/%s/en/%s.html" % (m1, m2),
-                })
-            meta = {
-                'has_more': has_more,
-                'more_url': "http://magiccards.info/query?q=" + name,
-            }
-            return (stream, meta)
+        if exact:
+            url = '%s/cards/named?exact=%s' % (self.API_ROOT, urllib.parse.quote(name))
+            try:
+                payload = self._open_json(url)
+            except urllib.error.HTTPError:
+                return [], {'has_more': False, 'more_url': ''}
+            entry = self._to_entry(payload)
+            return ([entry] if entry else []), {'has_more': False, 'more_url': ''}
 
-        url = "http://magiccards.info/query?q=%s%s&v=olist&s=cname" %\
-            ('!' if exact else 'l:en+', '+'.join(name.split()))
+        q = name.strip()
+        page_size = min(int(limit or 20), 175)
+        url = '%s/cards/search?q=%s&order=name&unique=cards&include_multilingual=false&page=1' % (
+            self.API_ROOT, urllib.parse.quote(q))
+        payload = self._open_json(url)
+        stream = []
+        for card in payload.get('data', []):
+            entry = self._to_entry(card)
+            if entry:
+                stream.append(entry)
+            if len(stream) >= page_size:
+                break
 
-        return DoQuery(url)
+        meta = {
+            'has_more': bool(payload.get('has_more', False)),
+            'more_url': payload.get('next_page', ''),
+        }
+        return stream, meta
+
+
+# Backwards-compatibility alias for existing saved source IDs.
+MagicCardsInfoPlugin = ScryfallPlugin
