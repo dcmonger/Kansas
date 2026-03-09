@@ -857,6 +857,7 @@ def web_socket_transfer_data(request):
                    'type': 'error',
                    'msg': str(e),
                    'details': tb,
+                   'future_id': req.get('future_id') if 'req' in locals() and isinstance(req, dict) else None,
                }),
                binary=False)
 
