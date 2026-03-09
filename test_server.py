@@ -2,9 +2,14 @@
 
 import argparse
 import logging
+import os
 from types import SimpleNamespace
 
-from server import kansas_wsh
+from server import debugtrace
+
+
+kansas_wsh = None
+
 
 try:
     from websockets.sync.server import serve
@@ -77,6 +82,12 @@ if __name__ == '__main__':
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
     )
     logging.info("Server debug logging %s", "enabled" if args.debug else "disabled")
+
+    if args.debug and "KANSAS_TRACE_CALLS" not in os.environ:
+        os.environ["KANSAS_TRACE_CALLS"] = "1"
+    debugtrace.maybe_enable_from_env(debug_enabled=args.debug)
+
+    from server import kansas_wsh
 
     print(f"Test console at http://localhost:{args.port}/console.html")
     with serve(_handler, "0.0.0.0", args.port):
