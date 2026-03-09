@@ -1740,6 +1740,12 @@ KansasUI.prototype.init = function(client, uuid, user, orient, gameid, gender, u
         client.callAsync('bulkquery', {
             'terms': queryTerms,
         }).then(function(data) {
+            if (!data || !data.resp) {
+                console.error("[KANSAS_DEBUG] step=bulkquery_failed_or_invalid_response data=", data);
+                debugStep("bulkquery_failed_or_invalid_response", data);
+                $("#search_preview").hide();
+                return;
+            }
             debugStep("bulkquery_success", {
                 responseKeys: Object.keys(data.resp || {}).length,
                 suggestions: (data['suggested'] || []).length,
@@ -1773,8 +1779,6 @@ KansasUI.prototype.init = function(client, uuid, user, orient, gameid, gender, u
                 $("#search_preview").hide();
                 debugStep("preview_hidden_no_valid_urls");
             }
-        }, function(err) {
-            console.error("[KANSAS_DEBUG] step=bulkquery_failed error=", err);
         });
     }
 
