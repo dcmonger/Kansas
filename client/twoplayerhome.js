@@ -14,11 +14,84 @@
     }
 })();
 
+(function() {
+    function wrapFunction(fn, label, seen) {
+        if (typeof fn !== "function") {
+            return fn;
+        }
+        if (fn.__kansas_traced__) {
+            return fn;
+        }
+        if (seen.has(fn)) {
+            return fn;
+        }
+        seen.add(fn);
+        var wrapped = function() {
+            if (window.KANSAS_DEBUG) {
+                var args = [];
+                for (var i = 0; i < arguments.length; i++) {
+                    args.push(arguments[i]);
+                }
+                console.log("[KANSAS TRACE] " + label, args);
+            }
+            return fn.apply(this, arguments);
+        };
+        wrapped.__kansas_traced__ = true;
+        wrapped.__kansas_trace_label__ = label;
+        wrapped.__kansas_original__ = fn;
+        return wrapped;
+    }
+
+    function traceObjectFunctions(obj, scopeLabel, seen) {
+        if (!obj) {
+            return;
+        }
+        Object.getOwnPropertyNames(obj).forEach(function(key) {
+            if (key === "constructor") {
+                return;
+            }
+            var descriptor = Object.getOwnPropertyDescriptor(obj, key);
+            if (!descriptor || !descriptor.value || typeof descriptor.value !== "function") {
+                return;
+            }
+            obj[key] = wrapFunction(descriptor.value, scopeLabel + "." + key, seen);
+        });
+    }
+
+    function enableFunctionTracing() {
+        if (!window.KANSAS_DEBUG || window.__kansas_trace_enabled__) {
+            return;
+        }
+        window.__kansas_trace_enabled__ = true;
+        var seen = new WeakSet();
+        var targets = [
+            [window, "window"],
+            [window.KansasUI && window.KansasUI.prototype, "KansasUI.prototype"],
+            [window.KansasClient && window.KansasClient.prototype, "KansasClient.prototype"],
+            [window.KansasView && window.KansasView.prototype, "KansasView.prototype"],
+            [window.KansasSearcher && window.KansasSearcher.prototype, "KansasSearcher.prototype"],
+            [window.Future && window.Future.prototype, "Future.prototype"]
+        ];
+        for (var i = 0; i < targets.length; i++) {
+            traceObjectFunctions(targets[i][0], targets[i][1], seen);
+        }
+        window.setTimeout = wrapFunction(window.setTimeout, "window.setTimeout", seen);
+        window.setInterval = wrapFunction(window.setInterval, "window.setInterval", seen);
+        console.log("[KANSAS TRACE] full function tracing enabled");
+    }
+
+    window.enableKansasFunctionTracing = enableFunctionTracing;
+})();
+
 /* XXX for exposing clients to world for debugging */
 var clients = [];
 var c0 = null;
 
 function setupTwoPlayerHome(kansas_ui) {  /* begin setupTwoPlayerHome */
+
+if (window.KANSAS_DEBUG) {
+    window.enableKansasFunctionTracing();
+}
 
 // Rebinds ctrl-f.
 $(window).keydown(function(e){
