@@ -136,76 +136,48 @@ $(window).bind('hashchange', function() {
     }
 });
 
-var kClientId = "8882673983-m7poir3vrdgjqeeavqh2i7jf7geeo2tk.apps.googleusercontent.com";
 
 function enterGame(orient) {
     if (orient != "player1" && orient != "player2") {
         console.log("Reset invalid orient " + orient + " to player1.");
         orient = "player1";
     }
-    var profile = localstore.get('profile');
-    var profileReq = new Future();
-    if (profile) {
-        console.log("Using cached profile; run localstore.put('profile') to reset.");
-        profileReq.done(profile);
-    } else {
-        kansas_ui.showSpinner("Logging in...");
-        var immediateAuthReq = new Future();
-        gapi.auth.authorize({
-            client_id: kClientId,
-            immediate: true,
-            scope: "profile",
-        }, immediateAuthReq.done.bind(immediateAuthReq));
-        immediateAuthReq.then(function(authResult, context) {
-            console.log("Auth result: " + JSON.stringify(authResult));
-            if (authResult == null || !authResult.status.signed_in) {
-                console.log("Retrying login with immediate = false.");
-                gapi.auth.authorize({
-                    client_id: kClientId,
-                    immediate: false,
-                    scope: "profile",
-                }, context.retry);
-                return context.Pending;
-            } else {
-                console.log("Immediate log in succeeded.");
-                return authResult;
-            }
-        }).then(function(authResult) {
-            if (signed_on) {
-                console.log("Already signed on.");
-                return;
-            }
-            signed_on = true;
-            gapi.client.load('plus','v1', function() {
-                kansas_ui.showSpinner("Almost done...");
-                gapi.client.plus.people.get({
-                    'userId': 'me'
-                }).execute(profileReq.done.bind(profileReq));
-            });
-        });
+
+    var selectedName = $.trim(localstore.get('username', ''));
+    if (!selectedName) {
+        selectedName = "Player";
     }
-    profileReq.then(function(resp) {
-        kansas_ui.hideSpinner();
-        localstore.put('profile', resp);
-        var user = resp.displayName;
-        $("#homescreen").hide();
-        $(".home-hidden").show();
-        document.title = 'Kansas: ' + orient + '@' + gameid;
-        prev_hash = document.location.hash = orient + ';' + gameid;
-        localstore.put('orient', orient);
 
-        kansas_ui.init(client, uuid, user, orient, gameid, resp.gender, resp.id);
-        connect_info = {
-            user: user,
-            gameid: gameid,
-            uuid: uuid,
-            profile: resp,
-            orient: orient,
-        };
+    var profile = {
+        displayName: selectedName,
+        gender: null,
+        id: selectedName,
+    };
 
-        client._state = 'opened_pending_connect';
-        client.send("connect", connect_info);
-    });
+    if (signed_on) {
+        console.log("Already signed on.");
+    }
+    signed_on = true;
+
+    kansas_ui.hideSpinner();
+    var user = profile.displayName;
+    $("#homescreen").hide();
+    $(".home-hidden").show();
+    document.title = 'Kansas: ' + orient + '@' + gameid;
+    prev_hash = document.location.hash = orient + ';' + gameid;
+    localstore.put('orient', orient);
+
+    kansas_ui.init(client, uuid, user, orient, gameid, profile.gender, profile.id);
+    connect_info = {
+        user: user,
+        gameid: gameid,
+        uuid: uuid,
+        profile: profile,
+        orient: orient,
+    };
+
+    client._state = 'opened_pending_connect';
+    client.send("connect", connect_info);
 }
 
 function handleRedirect(e) {
@@ -341,10 +313,12 @@ $(document).ready(function() {
     $("#login").submit(function() {
         localstore.put('scope', $("#scopename").val());
         localstore.put('sourceid', $("select[name=sourceid]").val());
+        localstore.put('username', $.trim($("#username").val()));
     });
 
     var scope = localstore.get('scope', 'DEFAULT');
     var sourceid = localstore.get('sourceid', 'localdb');
+    var username = localstore.get('username', 'Player');
     var scopeset_URL = false;
     var sourceset_URL = false;
     var scopeset = false;
@@ -372,6 +346,8 @@ $(document).ready(function() {
     if (localstore.get('sourceid') !== false) {
         sourceset = true;
     }
+
+    $("#username").val(username);
     if (scopeset && sourceset) {
         kansas_ui.vlog(0, "Setting scope to '" + scope + "'.");
         kansas_ui.vlog(0, "Setting sourceid to '" + sourceid + "'.");

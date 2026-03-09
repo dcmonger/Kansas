@@ -489,11 +489,12 @@ class KansasSpaceHandler(KansasHandler):
             logging.info(request)
             ipv4addr = (output.stream._request.connection
                               .remote_addr[0].replace('::ffff:', ''))
+            profile = request.get('profile', {}) or {}
             presence = {
                 'uuid': request['uuid'],
                 'name': request['user'],
-                'profile_pic': request['profile'].get('image', {}).get('url'),
-                'profile_url': request['profile'].get(
+                'profile_pic': profile.get('image', {}).get('url'),
+                'profile_url': profile.get(
                     'url', 'http://freegeoip.net/?q=%s&map=1' % ipv4addr),
                 'orient': request['orient'],
                 'addr': ipv4addr,
