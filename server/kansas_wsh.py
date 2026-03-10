@@ -165,7 +165,7 @@ class KansasGameState(object):
                 index[card] = ('hands', user)
         return index
 
-    def moveCard(self, card, dest_type, dest_key, dest_orient):
+    def moveCard(self, card, dest_type, dest_key, dest_orient, dest_index=None):
         assert dest_type in ['board', 'hands']
         if dest_type == 'board':
             dest_key = int(dest_key)
@@ -185,7 +185,12 @@ class KansasGameState(object):
             # Places card into new position.
             if dest_key not in self.data[dest_type]:
                 self.data[dest_type][dest_key] = []
-            self.data[dest_type][dest_key].append(card)
+            stack = self.data[dest_type][dest_key]
+            if dest_type == "hands" and dest_index is not None:
+                idx = max(0, min(int(dest_index), len(stack)))
+                stack.insert(idx, card)
+            else:
+                stack.append(card)
             self.index[card] = (dest_type, dest_key)
 
         self.data['orientations'][card] = dest_orient
@@ -764,8 +769,9 @@ class KansasGameHandler(KansasHandler):
             dest_type = move['dest_type']
             dest_key = move['dest_key']
             dest_orient = move['dest_orient']
+            dest_index = move.get('dest_index')
             src_type, src_key = self._state.moveCard(
-                card, dest_type, dest_key, dest_orient)
+                card, dest_type, dest_key, dest_orient, dest_index=dest_index)
             return src_type, src_key, self.nextseqno()
 
 

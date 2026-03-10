@@ -156,8 +156,7 @@ html, body {
     position: absolute;
     z-index: 2300000;
     border: 0 !important;
-    opacity: 0.8;
-    background-color: #555;
+    background-color: rgba(85, 85, 85, 0.8);
     border-radius: 6px;
     left: 30%;
     top: 0;
@@ -172,7 +171,7 @@ html, body {
 
 #hand {
     width: 100%;
-    background-color: #257390;
+    background-color: rgba(37, 115, 144, 0.8);
     border-top: 2px solid #33b5e5;
     position: absolute;
     bottom: 0px;
@@ -180,7 +179,6 @@ html, body {
     padding: 0;
     margin: 0;
     z-index: 2500000;
-    opacity: 0.80;
     /* hides white line on android */
     margin-bottom: -2px !important;
 }

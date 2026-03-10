@@ -207,13 +207,16 @@ KansasViewTxn.prototype.moveOnto = function(id, id_target) {
     return this;
 }
 
-KansasViewTxn.prototype.moveToHand = function(id, hand_id) {
+KansasViewTxn.prototype.moveToHand = function(id, hand_id, hand_index) {
     id = toId(id);
     var buf = this.movebuffer;
     this._initEmptyMove(buf, id);
     buf[id].dest_type = 'hands';
     buf[id].dest_key = hand_id;
     buf[id].dest_orient = 1;
+    if (hand_index != undefined && hand_index != null) {
+        buf[id].dest_index = parseInt(hand_index);
+    }
     return this;
 }
 
@@ -287,7 +290,8 @@ KansasViewTxn.prototype.commit = function() {
             move.id,
             move.dest_type,
             move.dest_key,
-            move.dest_orient);
+            move.dest_orient,
+            move.dest_index);
     }
     bulkmove.commit();
     this.committed = true;

@@ -118,7 +118,7 @@ KansasClient.prototype.queueLatencyMillis = function() {
     return 0;
 }
 
-KansasBulkMove.prototype.append = function(id, dest_type, dest, orient) {
+KansasBulkMove.prototype.append = function(id, dest_type, dest, orient, dest_index) {
     if (dest_type == 'board')
         dest = parseInt(dest);
     id = toId(id);
@@ -128,6 +128,7 @@ KansasBulkMove.prototype.append = function(id, dest_type, dest, orient) {
         dest_type: dest_type,
         dest_key: dest,
         dest_orient: orient,
+        dest_index: dest_index,
     });
     return this;
 }
@@ -144,7 +145,13 @@ KansasBulkMove.prototype.commit = function() {
             state[move.dest_type] = {};
         if (!state[move.dest_type][move.dest_key])
             state[move.dest_type][move.dest_key] = [];
-        state[move.dest_type][move.dest_key].push(id);
+        var stack = state[move.dest_type][move.dest_key];
+        if (move.dest_type == 'hands' && move.dest_index != undefined && move.dest_index != null) {
+            var idx = Math.max(0, Math.min(parseInt(move.dest_index), stack.length));
+            stack.splice(idx, 0, id);
+        } else {
+            stack.push(id);
+        }
         state.orientations[id] = move.dest_orient;
         this.client._game.index[id] = [move.dest_type, move.dest_key];
     }
