@@ -46,6 +46,7 @@ function KansasUI() {
     this.oldSnapCard = null;
     this.browsingCard = null;
     this.containmentHint = null;
+    this.oldHandSnapCard = null;
     this.selectedSet = [];
     this.decksAvail = [];
     this.nextBoardZIndex = 200;
@@ -54,6 +55,8 @@ function KansasUI() {
     this.searcher = null;
     this.oldtitle = null;
     this.deepenSelectionTimeoutId = null;
+    this.hoverPreviewTimeoutId = null;
+    this.hoverPreviewCardId = null;
     this.firstTimeShowingPanel = true;
     this.lastSavedDeckContents = null;
     this.lastSavedDeckName = null;
@@ -321,9 +324,17 @@ var kFrameUpdatePeriod = 200;
 
 /* Returns [width, height] of arena. */
 function getBBox() {
+    var arena = $("#arena");
+    var hand = $("#hand");
+    var arenaTop = arena.offset().top;
+    var handTop = hand.offset().top - arenaTop;
+    var reserve = handTop;
+    if (isNaN(reserve) || reserve <= 0) {
+        reserve = arena.outerHeight() - kMinHandHeight;
+    }
     return [
-        $("#arena").outerWidth(),
-        $("#arena").outerHeight() - kMinHandHeight,
+        arena.outerWidth(),
+        reserve,
     ];
 }
 
@@ -532,6 +543,7 @@ KansasUI.prototype._removeFocus = function(doAnimation) {
     $(".card").removeClass("highlight");
     $(".card").css("box-shadow", "none");
     this.selectedSet = [];
+    this._clearHandDropPreview();
     this.client.send("broadcast",
         {
             "subtype": "frameupdate",
@@ -564,6 +576,7 @@ KansasUI.prototype._setSnapPoint = function(snap) {
 /* Garbage collects older hovermenu image. */
 KansasUI.prototype._removeHoverMenu = function(doAnimation) {
     var old = $(".hovermenu");
+    this._cancelHoverPreview();
     this.hoverCardId = null;
     if (old.length > 0) {
         if (doAnimation) {
@@ -1049,6 +1062,87 @@ KansasUI.prototype._handleSelectionMovedToHand = function(selectedSet) {
     txn.commit();
 }
 
+KansasUI.prototype._findHandInsertIndex = function(card) {
+    var hand = this.client.getStack('hands', this.hand_user) || [];
+    var cardId = toId(card);
+    var remaining = $.grep(hand, function(id) {
+        return id != cardId;
+    });
+    if (remaining.length == 0) {
+        return 0;
+    }
+
+    var cardWidth = card.outerWidth();
+    var cardHeight = card.outerHeight();
+    var dropX = card.offset().left + cardWidth / 2;
+    var dropY = card.offset().top + cardHeight / 2;
+
+    var cards = $.map(remaining, function(id) {
+        var node = $("#card_" + id);
+        return {
+            id: id,
+            left: node.offset().left,
+            top: node.offset().top,
+            width: node.outerWidth(),
+            height: node.outerHeight(),
+        };
+    });
+
+    cards.sort(function(a, b) {
+        if (Math.abs(a.top - b.top) > cardHeight / 2) {
+            return a.top - b.top;
+        }
+        return a.left - b.left;
+    });
+
+    for (var i = 0; i < cards.length; i += 1) {
+        var c = cards[i];
+        var centerX = c.left + c.width / 2;
+        var centerY = c.top + c.height / 2;
+        if (dropY < centerY - cardHeight / 3) {
+            return i;
+        }
+        if (Math.abs(dropY - centerY) <= cardHeight / 3 && dropX < centerX) {
+            return i;
+        }
+    }
+    return cards.length;
+}
+
+KansasUI.prototype._clearHandDropPreview = function() {
+    if (this.oldHandSnapCard != null) {
+        this.oldHandSnapCard.removeClass("snappoint");
+        this.oldHandSnapCard = null;
+    }
+}
+
+KansasUI.prototype._setHandDropPreview = function(index, card) {
+    this._clearHandDropPreview();
+    var hand = this.client.getStack('hands', this.hand_user) || [];
+    if (hand.length == 0) {
+        return;
+    }
+
+    var previewId = null;
+    if (index < hand.length) {
+        previewId = hand[index];
+    } else if (hand.length > 0) {
+        previewId = hand[hand.length - 1];
+    }
+
+    if (previewId == null) {
+        return;
+    }
+    if (toId(card) == previewId && hand.length > 1) {
+        previewId = hand[Math.max(0, hand.length - 2)];
+    }
+    var preview = $("#card_" + previewId);
+    if (preview.length > 0) {
+        preview.addClass("snappoint");
+        this.oldHandSnapCard = preview;
+    }
+}
+
 /* Returns highest resolution image to display for card. */
 KansasUI.prototype._highRes = function(card, reverse) {
     var orient = this.client.getOrient(card);
@@ -1374,6 +1468,22 @@ KansasUI.prototype._unrotateSelected = function() {
     txn.commit();
 }
 
+KansasUI.prototype._rotateStack = function(memberCard) {
+    var txn = this.view.startBulkMove();
+    $.each(zSorted(this._stackOf(memberCard)), function() {
+        txn.rotate($(this));
+    });
+    txn.commit();
+}
+
+KansasUI.prototype._unrotateStack = function(memberCard) {
+    var txn = this.view.startBulkMove();
+    $.each(zSorted(this._stackOf(memberCard)), function() {
+        txn.unrotate($(this));
+    });
+    txn.commit();
+}
+
 /* Shows hovermenu of prev card in stack. */
 KansasUI.prototype._stackNext = function(memberCard) {
     var idx = this.client.stackIndex(memberCard) - 1;
@@ -1427,6 +1537,48 @@ KansasUI.prototype._showHoverMenu = function(card) {
         newNode.css("top", 0);
     }
     setTimeout(function() { old.remove(); }, 1200);
+}
+
+KansasUI.prototype._showHoverPreview = function(card) {
+    if (!card || card.length != 1) {
+        return;
+    }
+    this._removeHoverMenu();
+    this.hoverCardId = card.prop("id");
+    var src = this._toResource(this._highRes(card));
+    var imgCls = card.hasClass("rotated") ? "hoverRotate" : "";
+    var ratio = card.hasClass("rotated") ? kHoverTapRatio : kHoverCardRatio;
+    var height = kCardHeight * ratio;
+    var width = kCardWidth * ratio;
+    var html = ('<div class="hovermenu hoverpreview">'
+        + '<img class="' + imgCls + '" style="height: ' + height
+        + 'px; width: ' + width + 'px;" src="' + src + '"></img>'
+        + '</div>');
+    var newNode = $(html).appendTo("body");
+    newNode.width(width);
+    newNode.height(height);
+    newNode.css("margin-left", - (width / 2));
+    newNode.css("margin-top", - (height / 2));
+    newNode.show();
+}
+
+KansasUI.prototype._scheduleHoverPreview = function(card) {
+    this._cancelHoverPreview();
+    var that = this;
+    this.hoverPreviewCardId = card.prop("id");
+    this.hoverPreviewTimeoutId = setTimeout(function() {
+        if (!that.dragging && that.hoverPreviewCardId == card.prop("id")) {
+            that._showHoverPreview(card);
+        }
+    }, 1500);
+}
+
+KansasUI.prototype._cancelHoverPreview = function() {
+    if (this.hoverPreviewTimeoutId != null) {
+        clearTimeout(this.hoverPreviewTimeoutId);
+        this.hoverPreviewTimeoutId = null;
+    }
+    this.hoverPreviewCardId = null;
 }
 
 KansasUI.prototype._menuForSelection = function(selectedSet) {
@@ -1529,6 +1681,7 @@ KansasUI.prototype._menuForSelection = function(selectedSet) {
 }
 
 KansasUI.prototype._menuForCard = function(card) {
+    var that = this;
     this.vlog(2, "Hover menu for #" + this.hoverCardId
         + "@" + this.client.getPos(card)[1]);
     var numCards = this.client.stackHeight(card);
@@ -1567,11 +1720,28 @@ KansasUI.prototype._menuForCard = function(card) {
         + height + 'px; width: ' + width + 'px;"'
         + ' src="' + src + '"></img>'
         + '<ul class="hovermenu" style="float: right; width: 50px;">');
+    var stackHasTapped = false;
+    var stackHasUntapped = false;
     if (numCards > 1 && !this.client.inHand(card)) {
+        var stack = this._stackOf(card);
+        $.each(stack, function() {
+            var orient = that.client.getOrient($(this));
+            if (Math.abs(orient) == 1) {
+                stackHasUntapped = true;
+            } else {
+                stackHasTapped = true;
+            }
+        });
         html += '<span class="header" style="margin-left: -130px">&nbsp;STACK</span>"';
         html += ('<li style="margin-left: -130px"'
             + ' class="top boardonly bulk"'
             + ' data-key="browsestack">Browse</li>'
+            + '<li style="margin-left: -130px"'
+            + ' class="boardonly bulk stacktapall"'
+            + ' data-key="stackrotateall">Tap All</li>'
+            + '<li style="margin-left: -130px"'
+            + ' class="boardonly bulk stackuntapall"'
+            + ' data-key="stackunrotateall">Untap All</li>'
             + '<li style="margin-left: -130px"'
             + ' class="bottom bulk boardonly"'
             + ' data-key="toselection"><i>Select...</i></li>');
@@ -1603,6 +1773,12 @@ KansasUI.prototype._menuForCard = function(card) {
     } else if (numCards > 1) {
         $(".hovernote").show();
         $(".boardonly").removeClass("disabled");
+        if (!stackHasUntapped) {
+            $(".stacktapall").addClass("disabled");
+        }
+        if (!stackHasTapped) {
+            $(".stackuntapall").addClass("disabled");
+        }
         if (i == 1) {
             $(".stackprev").addClass("disabled");
         } else if (i == numCards) {
@@ -2053,6 +2229,8 @@ KansasUI.prototype.init = function(client, uuid, user, orient, gameid, gender, u
         'unrotate': this._unrotateCard,
         'rotateall': this._rotateSelected,
         'unrotateall': this._unrotateSelected,
+        'stackrotateall': this._rotateStack,
+        'stackunrotateall': this._unrotateStack,
         'reversestack': this._reverseStack,
         'browsestack': this._browseStack,
         'draw': this._draw,
@@ -2895,6 +3073,11 @@ KansasUI.prototype._initCards = function(sel) {
         that.dragging = true;
         card.stop();
         that._updateDragProgress(card);
+        if ($("#hand").hasClass("active")) {
+            that._setHandDropPreview(that._findHandInsertIndex(card), card);
+        } else {
+            that._clearHandDropPreview();
+        }
     });
 
     sel.bind("dragstop", function(event, ui) {
@@ -2902,6 +3085,7 @@ KansasUI.prototype._initCards = function(sel) {
         that._updateDragProgress(card, true);
         that.dragging = false;
         that._removeFocus();
+        that._clearHandDropPreview();
         that._raiseCard(card);
         $("#hand").removeClass("dragging");
 
@@ -2913,7 +3097,7 @@ KansasUI.prototype._initCards = function(sel) {
             that._setOrientProperties(card, -1);
         } else if ($("#hand").hasClass("active")) {
             deferDeactivateHand();
-            txn.moveToHand(card, that.hand_user);
+            txn.moveToHand(card, that.hand_user, that._findHandInsertIndex(card));
             that._setOrientProperties(card, 1);
         } else {
             var snap = that._findSnapPoint(card);
@@ -2945,9 +3129,36 @@ KansasUI.prototype._initCards = function(sel) {
         that.deepenSelectionTimeoutId = setTimeout(deepenSelection, 500);
     }
 
+    sel.mouseenter(function(event) {
+        var card = $(event.currentTarget);
+        if (!that.dragging) {
+            that._scheduleHoverPreview(card);
+        }
+    });
+
+    sel.mouseleave(function(event) {
+        that._cancelHoverPreview();
+        that._removeHoverMenu();
+    });
+
+    sel.dblclick(function(event) {
+        var card = $(event.currentTarget);
+        if (that.client.inHand(card)) {
+            return;
+        }
+        var pos = that.client.getPos(card);
+        var topId = that.client.getStackTop(pos[0], pos[1]);
+        var topCard = $("#card_" + topId);
+        that._toggleRotateCard(topCard);
+        that._removeFocus();
+        that.disableArenaEvents = true;
+    });
+
     sel.mousedown(function(event) {
         that.vlog(3, "----------");
         var card = $(event.currentTarget);
+        that._cancelHoverPreview();
+        that._removeHoverMenu();
         that.dragStartKey = that.client.getPos(card)[1];
         that.hasDraggedOffStart = false;
         if (that.client.inHand(card)
@@ -2962,6 +3173,7 @@ KansasUI.prototype._initCards = function(sel) {
 
     sel.mouseup(function(event) {
         var card = $(event.currentTarget);
+        that._cancelHoverPreview();
         var inophand = client.getPos(card)[1] == that.opposing_hand_user;
         if (!that.dragging) {
             if ($(".selecting").length != 0) {
@@ -2983,7 +3195,8 @@ KansasUI.prototype._initCards = function(sel) {
                     if (event.which == 2) {
                         that._toggleRotateCard(card);
                         that._removeFocus();
-                    } else {
+                    } else if (!that.client.inHand(card)
+                            && that.client.stackHeight(card) > 1) {
                         that._showHoverMenu(card);
                     }
                 } else {
@@ -2991,9 +3204,6 @@ KansasUI.prototype._initCards = function(sel) {
                 }
             } else {
                 that.vlog(2, "case 4");
-                if (!that.client.inHand(card)) {
-                    that._toggleRotateCard(card);
-                }
                 that._removeFocus();
             }
         }
